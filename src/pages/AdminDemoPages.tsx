@@ -6,7 +6,9 @@ import {
   ChevronDown,
   Download,
   Eye,
+  FileText,
   GraduationCap,
+  Megaphone,
   Plus,
   ReceiptText,
   Save,
@@ -70,7 +72,7 @@ const SectionTitle = ({ title, description, action }: { title: string; descripti
   </div>
 )
 
-const students = [
+const studentSeeds = [
   { id: "ST-1001", name: "Aarav Sharma", grade: "Grade 10-A", guardian: "Rohan Sharma", phone: "+91 98765 10234", due: "₹0", status: "Paid" },
   { id: "ST-1002", name: "Diya Patel", grade: "Grade 8-B", guardian: "Kavita Patel", phone: "+91 98765 33421", due: "₹4,800", status: "Partial" },
   { id: "ST-1003", name: "Vivaan Gupta", grade: "Grade 12-A", guardian: "Amit Gupta", phone: "+91 98765 09122", due: "₹12,500", status: "Overdue" },
@@ -79,10 +81,21 @@ const students = [
   { id: "ST-1006", name: "Myra Kapoor", grade: "Grade 8-A", guardian: "Sonia Kapoor", phone: "+91 98765 89602", due: "₹15,600", status: "Overdue" },
 ]
 
+const studentDirectoryTotal = 1248
+const students = Array.from({ length: studentDirectoryTotal }, (_, index) => {
+  const seed = studentSeeds[index % studentSeeds.length]
+  return {
+    ...seed,
+    id: `ST-${(1001 + index).toString()}`,
+  }
+})
+
 export const StudentsPage = () => {
   const [query, setQuery] = useState("")
   const [grade, setGrade] = useState("All grades")
   const [notice, setNotice] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   const filteredStudents = useMemo(
     () =>
@@ -91,6 +104,13 @@ export const StudentsPage = () => {
         return matchesQuery && (grade === "All grades" || student.grade.startsWith(grade))
       }),
     [grade, query],
+  )
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize))
+  const activePage = Math.min(currentPage, totalPages)
+  const pageStart = (activePage - 1) * pageSize
+  const visibleStudents = filteredStudents.slice(pageStart, pageStart + pageSize)
+  const visiblePageNumbers = Array.from(new Set([1, activePage - 1, activePage, activePage + 1, totalPages])).filter(
+    (page) => page >= 1 && page <= totalPages,
   )
 
   return (
@@ -112,10 +132,10 @@ export const StudentsPage = () => {
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="relative w-full sm:max-w-sm">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} className={`${inputClassName} pl-9`} placeholder="Search student or guardian" />
+            <input value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1) }} className={`${inputClassName} pl-9`} placeholder="Search student or guardian" />
           </div>
           <div className="flex gap-2">
-            <select value={grade} onChange={(event) => setGrade(event.target.value)} className={`${inputClassName} w-auto pr-8`}>
+            <select value={grade} onChange={(event) => { setGrade(event.target.value); setCurrentPage(1) }} className={`${inputClassName} w-auto pr-8`}>
               <option>All grades</option>
               <option>Grade 6</option>
               <option>Grade 8</option>
@@ -141,7 +161,7 @@ export const StudentsPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredStudents.map((student) => (
+              {visibleStudents.map((student) => (
                 <tr key={student.id} className="transition-colors hover:bg-slate-50/70">
                   <td className="px-5 py-4 sm:px-6">
                     <div className="flex items-center gap-3">
@@ -159,7 +179,14 @@ export const StudentsPage = () => {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3.5 text-sm text-slate-500 sm:px-6"><span>Showing {filteredStudents.length} of {students.length} students</span><span>Page 1 of 8</span></div>
+        <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3.5 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <span>Showing {filteredStudents.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + pageSize, filteredStudents.length)} of {filteredStudents.length.toLocaleString()} students</span>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={activePage === 1} className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-slate-50">Previous</button>
+            {visiblePageNumbers.map((page, index) => <span key={page} className="flex items-center gap-1.5">{index > 0 && page - visiblePageNumbers[index - 1] > 1 && <span className="px-0.5 text-slate-400">…</span>}<button type="button" onClick={() => setCurrentPage(page)} className={`size-8 rounded-md text-xs font-semibold transition ${page === activePage ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{page}</button></span>)}
+            <button type="button" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={activePage === totalPages} className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-slate-50">Next</button>
+          </div>
+        </div>
       </Card>
     </div>
   )
@@ -300,11 +327,179 @@ const notificationHistory = [
   { title: "Fee deadline extension", audience: "Parents with pending invoices", sent: "10 Sep, 11:15 AM", delivery: "274 delivered", status: "Sent" },
 ]
 
-export const NotificationsPage = () => {
+const NotificationComposerPanel = () => {
   const [recipient, setRecipient] = useState("Parents with pending invoices")
   const [message, setMessage] = useState("Your Term 3 fee payment is due on 15 September. Please pay through the parent portal to avoid late charges.")
   const [notice, setNotice] = useState("")
   return <div className="mx-auto max-w-7xl space-y-6"><PageHeader eyebrow="Communication centre" title="Notifications" description="Send fee reminders and school updates to parents, students, and staff." /><div className="grid gap-6 xl:grid-cols-5"><Card className="p-5 sm:p-6 xl:col-span-2"><div className="flex items-center gap-3"><div className="flex size-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Bell className="size-5" /></div><div><h2 className="font-semibold text-slate-900">Compose notification</h2><p className="mt-0.5 text-sm text-slate-500">Email and in-app delivery</p></div></div><label className="mt-6 block text-sm font-semibold text-slate-700">Recipients<select value={recipient} onChange={(event) => setRecipient(event.target.value)} className={`${inputClassName} mt-2`}><option>Parents with pending invoices</option><option>All parents</option><option>Grade 10 parents</option><option>All staff members</option></select></label><label className="mt-4 block text-sm font-semibold text-slate-700">Message<textarea value={message} onChange={(event) => setMessage(event.target.value)} className="mt-2 min-h-32 w-full rounded-lg border border-slate-200 p-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-3 focus:ring-blue-100" /></label><div className="mt-5 flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{message.length} / 500 characters</p><button onClick={() => setNotice(`Notification sent to ${recipient}.`)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"><Send className="size-4" /> Send now</button></div>{notice && <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-700">{notice}</p>}</Card><Card className="xl:col-span-3"><SectionTitle title="Recent notifications" description="Delivery status of school communication" /><div className="divide-y divide-slate-100">{notificationHistory.map((item) => <div key={item.title} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><p className="font-semibold text-slate-800">{item.title}</p><p className="mt-1 text-sm text-slate-500">{item.audience}</p></div><div className="flex items-center gap-5"><div className="text-right text-xs"><p className="font-medium text-slate-600">{item.delivery}</p><p className="mt-1 text-slate-400">{item.sent}</p></div><StatusBadge value={item.status} /></div></div>)}</div></Card></div></div>
+}
+
+type NoticeAudience = "All parents" | "All staff" | "Parents & staff" | "Grade 10 parents"
+type NoticeKind = "Announcement" | "Notice"
+
+type NoticePost = {
+  id: number
+  kind: NoticeKind
+  title: string
+  message: string
+  audience: NoticeAudience
+  date: string
+  author: string
+  pinned?: boolean
+}
+
+const initialNoticePosts: NoticePost[] = [
+  {
+    id: 1,
+    kind: "Announcement",
+    title: "Parent–teacher meeting schedule released",
+    message: "The Term 3 parent–teacher meeting will be held on Saturday, 26 September. Time slots are now available in the parent portal.",
+    audience: "All parents",
+    date: "Today, 09:30 AM",
+    author: "Priya Sharma",
+    pinned: true,
+  },
+  {
+    id: 2,
+    kind: "Notice",
+    title: "Term 3 fee payment deadline",
+    message: "Please complete Term 3 fee payments by 15 September to avoid the late payment charge. Contact the accounts office for assistance.",
+    audience: "Parents & staff",
+    date: "12 Sep, 03:30 PM",
+    author: "Accounts Office",
+  },
+  {
+    id: 3,
+    kind: "Announcement",
+    title: "Staff development workshop",
+    message: "A mandatory teaching and learning workshop is scheduled for Friday, 18 September, from 2:00 PM to 4:30 PM in the auditorium.",
+    audience: "All staff",
+    date: "10 Sep, 11:00 AM",
+    author: "Academic Office",
+  },
+]
+
+const AnnouncementsPanel = () => {
+  const [posts, setPosts] = useState(initialNoticePosts)
+  const [kind, setKind] = useState<NoticeKind>("Announcement")
+  const [audience, setAudience] = useState<NoticeAudience>("All parents")
+  const [title, setTitle] = useState("")
+  const [message, setMessage] = useState("")
+  const [filter, setFilter] = useState<"All" | NoticeKind>("All")
+  const [feedback, setFeedback] = useState("")
+
+  const visiblePosts = posts.filter((post) => filter === "All" || post.kind === filter)
+
+  const publishPost = () => {
+    if (!title.trim() || !message.trim()) {
+      setFeedback("Add a title and message before publishing the post.")
+      return
+    }
+
+    setPosts((current) => [
+      {
+        id: Date.now(),
+        kind,
+        title: title.trim(),
+        message: message.trim(),
+        audience,
+        date: "Just now",
+        author: "Priya Sharma",
+      },
+      ...current,
+    ])
+    setTitle("")
+    setMessage("")
+    setFeedback(`${kind} published for ${audience.toLowerCase()}.`)
+  }
+
+  const togglePinned = (id: number) => {
+    setPosts((current) => current.map((post) => (post.id === id ? { ...post, pinned: !post.pinned } : post)))
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6">
+      <PageHeader
+        eyebrow="School communication"
+        title="Announcements & notices"
+        description="Publish important updates to the parent and staff portals from one managed notice board."
+        action={<button className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"><Eye className="size-4" /> Preview public board</button>}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="p-5"><div className="flex items-center justify-between"><span className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Megaphone className="size-5" /></span><span className="text-xs font-semibold text-blue-600">This term</span></div><p className="mt-5 text-sm font-medium text-slate-500">Published posts</p><p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{posts.length + 9}</p><p className="mt-1 text-xs text-slate-400">Visible on connected portals</p></Card>
+        <Card className="p-5"><div className="flex items-center justify-between"><span className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><Eye className="size-5" /></span><span className="text-xs font-semibold text-emerald-600">96.8%</span></div><p className="mt-5 text-sm font-medium text-slate-500">Average reach</p><p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">1,208</p><p className="mt-1 text-xs text-slate-400">Parent and staff views</p></Card>
+        <Card className="p-5"><div className="flex items-center justify-between"><span className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><FileText className="size-5" /></span><span className="text-xs font-semibold text-amber-600">Needs review</span></div><p className="mt-5 text-sm font-medium text-slate-500">Saved drafts</p><p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">3</p><p className="mt-1 text-xs text-slate-400">Not yet published</p></Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-5">
+        <Card className="h-fit p-5 sm:p-6 xl:col-span-2">
+          <div className="flex items-center gap-3"><div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Megaphone className="size-5" /></div><div><h2 className="font-semibold text-slate-900">Create a post</h2><p className="mt-0.5 text-sm text-slate-500">It will appear for the selected audience.</p></div></div>
+
+          <div className="mt-6 grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-1">
+            {(["Announcement", "Notice"] as NoticeKind[]).map((option) => <button key={option} onClick={() => setKind(option)} className={`rounded-md px-3 py-2 text-sm font-semibold transition ${kind === option ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{option}</button>)}
+          </div>
+
+          <label className="mt-5 block text-sm font-semibold text-slate-700">Audience
+            <select value={audience} onChange={(event) => setAudience(event.target.value as NoticeAudience)} className={`${inputClassName} mt-2`}>
+              <option>All parents</option><option>All staff</option><option>Parents & staff</option><option>Grade 10 parents</option>
+            </select>
+          </label>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">Title
+            <input value={title} onChange={(event) => setTitle(event.target.value)} className={`${inputClassName} mt-2`} placeholder="Enter a clear headline" />
+          </label>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">Message
+            <textarea value={message} onChange={(event) => setMessage(event.target.value)} className="mt-2 min-h-36 w-full rounded-lg border border-slate-200 p-3 text-sm leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-3 focus:ring-blue-100" placeholder="Write the information your audience needs to know" />
+          </label>
+          <div className="mt-5 flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{message.length} / 750 characters</p><button onClick={publishPost} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700"><Send className="size-4" /> Publish post</button></div>
+          {feedback && <p className={`mt-4 rounded-lg px-3 py-2.5 text-sm font-medium ${feedback.startsWith("Add") ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{feedback}</p>}
+        </Card>
+
+        <Card className="overflow-hidden xl:col-span-3">
+          <SectionTitle title="Notice board" description="Posts currently visible on the parent and staff portals" action={<div className="flex gap-1 rounded-lg bg-slate-100 p-1">{(["All", "Announcement", "Notice"] as const).map((option) => <button key={option} onClick={() => setFilter(option)} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${filter === option ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{option}</button>)}</div>} />
+          <div className="divide-y divide-slate-100">
+            {visiblePosts.map((post) => (
+              <article key={post.id} className="p-5 sm:px-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${post.kind === "Announcement" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>{post.kind}</span>{post.pinned && <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">Pinned</span>}</div>
+                    <h3 className="mt-3 text-base font-semibold text-slate-900">{post.title}</h3>
+                    <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">{post.message}</p>
+                  </div>
+                  <button onClick={() => togglePinned(post.id)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition ${post.pinned ? "bg-violet-50 text-violet-700 hover:bg-violet-100" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{post.pinned ? "Unpin post" : "Pin post"}</button>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-400"><span className="font-medium text-slate-600">{post.audience}</span><span>{post.date}</span><span>Published by {post.author}</span></div>
+              </article>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+export const NotificationsPage = () => {
+  const [activeTab, setActiveTab] = useState<"Notifications" | "Announcements & notices">("Notifications")
+
+  return (
+    <div className="space-y-6">
+      <div className="mx-auto flex w-full max-w-7xl gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm" role="tablist" aria-label="Communication tools">
+        {(["Notifications", "Announcements & notices"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            onClick={() => setActiveTab(tab)}
+            className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+      {activeTab === "Notifications" ? <NotificationComposerPanel /> : <AnnouncementsPanel />}
+    </div>
+  )
 }
 
 export const SettingsPage = () => {

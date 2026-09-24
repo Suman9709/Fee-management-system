@@ -4,6 +4,7 @@ import {
   FileText,
   GraduationCap,
   LayoutDashboard,
+  LogOut,
   Menu,
   School,
   Search,
@@ -14,7 +15,7 @@ import {
   WalletCards,
 } from "lucide-react"
 import type { ComponentType } from "react"
-import { NavLink, Outlet, useLocation } from "react-router-dom"
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 
 type NavigationItem = {
   label: string
@@ -49,7 +50,13 @@ const pageTitles: Record<string, string> = {
 
 const AdminDashboardLayout = () => {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const pageTitle = pageTitles[pathname] ?? "Administration"
+
+  const handleLogout = () => {
+    window.sessionStorage.removeItem("fee-management-demo-session")
+    navigate("/", { replace: true })
+  }
 
   return (
     <div className="drawer min-h-screen bg-[#f7f8fc] text-slate-900 lg:drawer-open">
@@ -149,6 +156,16 @@ const AdminDashboardLayout = () => {
               <div className="flex size-8 items-center justify-center rounded-lg bg-slate-800 text-blue-400"><GraduationCap className="size-4" /></div>
               <div><p className="text-xs font-semibold text-slate-100">Academic year 2026–27</p><p className="mt-0.5 text-[11px] text-slate-400">Term 3 in progress</p></div>
             </div>
+          </div>
+          <div className="px-3 pb-4">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-rose-500/10 hover:text-rose-300"
+            >
+              <LogOut className="size-[18px]" aria-hidden="true" />
+              Log out
+            </button>
           </div>
         </aside>
       </div>
