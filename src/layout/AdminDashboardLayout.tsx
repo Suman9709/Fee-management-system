@@ -1,7 +1,6 @@
 import {
   Bell,
   CreditCard,
-  FileText,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -24,27 +23,23 @@ type NavigationItem = {
 }
 
 const navigationItems: NavigationItem[] = [
-  { label: "Dashboard", to: "/admin", icon: LayoutDashboard },
-  { label: "Students", to: "/admin/students", icon: UsersRound },
-  { label: "Academics", to: "/admin/academics", icon: GraduationCap },
-  { label: "Fee Management", to: "/admin/fee-management", icon: WalletCards },
-  { label: "Payments", to: "/admin/payments", icon: CreditCard },
-  { label: "Invoices", to: "/admin/invoices", icon: FileText },
-  { label: "Defaulters", to: "/admin/defaulters", icon: TriangleAlert },
-  { label: "Staff", to: "/admin/staff", icon: UserRoundCog },
-  { label: "Notifications", to: "/admin/notifications", icon: Bell },
+  { label: "Owner dashboard", to: "/admin", icon: LayoutDashboard },
+  { label: "Student overview", to: "/admin/students", icon: UsersRound },
+  { label: "Fee analytics", to: "/admin/fee-management", icon: WalletCards },
+  { label: "Collection reports", to: "/admin/payments", icon: CreditCard },
+  { label: "Outstanding fees", to: "/admin/defaulters", icon: TriangleAlert },
+  { label: "Staff activity", to: "/admin/staff", icon: UserRoundCog },
+  { label: "Communication activity", to: "/admin/notifications", icon: Bell },
 ]
 
 const pageTitles: Record<string, string> = {
-  "/admin": "Dashboard",
-  "/admin/students": "Students",
-  "/admin/academics": "Academics",
-  "/admin/fee-management": "Fee Management",
-  "/admin/payments": "Payments",
-  "/admin/invoices": "Invoices",
-  "/admin/defaulters": "Defaulters",
-  "/admin/staff": "Staff",
-  "/admin/notifications": "Notifications",
+  "/admin": "Owner dashboard",
+  "/admin/students": "Student overview",
+  "/admin/fee-management": "Fee analytics",
+  "/admin/payments": "Collection reports",
+  "/admin/defaulters": "Outstanding fees",
+  "/admin/staff": "Staff activity",
+  "/admin/notifications": "Communication activity",
   "/admin/settings": "Settings",
 }
 
@@ -73,7 +68,7 @@ const AdminDashboardLayout = () => {
           </label>
 
           <div>
-            <p className="text-xs font-medium text-slate-400">School administration</p>
+            <p className="text-xs font-medium text-slate-400">School owner portal</p>
             <h1 className="mt-0.5 text-base font-semibold text-slate-900">{pageTitle}</h1>
           </div>
 
@@ -88,7 +83,7 @@ const AdminDashboardLayout = () => {
             </button>
             <button className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 text-left transition hover:bg-slate-50">
               <span className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-bold text-white">PS</span>
-              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">Priya Sharma</span><span className="block text-[11px] text-slate-400">Administrator</span></span>
+              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">Priya Sharma</span><span className="block text-[11px] text-slate-400">School owner</span></span>
             </button>
           </div>
         </header>
@@ -108,7 +103,7 @@ const AdminDashboardLayout = () => {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold tracking-tight text-white">Greenfield Academy</p>
-              <p className="mt-0.5 text-xs text-slate-400">Fee management portal</p>
+              <p className="mt-0.5 text-xs text-slate-400">Owner insights portal</p>
             </div>
           </header>
 

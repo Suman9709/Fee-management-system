@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react"
 import { LockIcon, UserIcon } from "@phosphor-icons/react"
+import { useNavigate } from "react-router-dom"
 
-type Role = "Admin" | "Office Staff" | "Student"
+type Role = "Admin" | "Office Staff" | "Parent"
 
-const roles: Role[] = ["Admin", "Office Staff", "Student"]
+const roles: Role[] = ["Admin", "Office Staff", "Parent"]
 
 const LoginPage = () => {
+  const navigate = useNavigate()
   const [role, setRole] = useState<Role>("Admin")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -16,8 +18,12 @@ const LoginPage = () => {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
-   
+    const portalPaths: Record<Role, string> = {
+      Admin: "/admin",
+      "Office Staff": "/staff",
+      Parent: "/parent",
+    }
+    navigate(portalPaths[role], { replace: true })
   }
 
   return (
