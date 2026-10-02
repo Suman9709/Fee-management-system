@@ -1,18 +1,5 @@
-import {
-  Bell,
-  CreditCard,
-  GraduationCap,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  School,
-  Search,
-  Settings,
-  TriangleAlert,
-  UserRoundCog,
-  UsersRound,
-  WalletCards,
-} from "lucide-react"
+import { useLogout, useProfile } from "@/hooks/authHooks/useAuth"
+import {Bell, CreditCard, GraduationCap, LayoutDashboard, LogOut, Menu, School, Search, Settings, TriangleAlert, UserRoundCog, UsersRound, WalletCards} from "lucide-react"
 import type { ComponentType } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 
@@ -48,17 +35,27 @@ const AdminDashboardLayout = () => {
   const navigate = useNavigate()
   const pageTitle = pageTitles[pathname] ?? "Administration"
 
-  const handleLogout = () => {
-    window.sessionStorage.removeItem("fee-management-demo-session")
-    navigate("/", { replace: true })
+  const { mutateAsync: logout, isPending: isLoggingOut } = useLogout()
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigate("/", { replace: true })
+    }
+    catch (error) {
+      console.error("Logout failed", error)
+    }
   }
+
+  const { data: profile, user, isPending } = useProfile()
+  const displayName = profile?.full_name ?? user?.username ?? "User"
+  const initials = displayName.slice(0, 2).toUpperCase()
 
   return (
     <div className="drawer min-h-screen bg-[#f7f8fc] text-slate-900 lg:drawer-open">
       <input id="admin-drawer" type="checkbox" className="drawer-toggle" />
 
       <div className="drawer-content flex min-h-screen flex-col">
-        <header className="sticky top-0 z-30 flex h-[72px] shrink-0 items-center border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-7">
+        <header className="sticky top-0 z-30 flex h-18 shrink-0 items-center border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-7">
           <label
             htmlFor="admin-drawer"
             aria-label="Open navigation menu"
@@ -82,8 +79,13 @@ const AdminDashboardLayout = () => {
               <span className="absolute top-2.5 right-2.5 size-1.5 rounded-full bg-blue-600 ring-2 ring-white" />
             </button>
             <button className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 text-left transition hover:bg-slate-50">
-              <span className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-bold text-white">PS</span>
-              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">Priya Sharma</span><span className="block text-[11px] text-slate-400">School owner</span></span>
+              <span className="flex size-8 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-indigo-600 text-xs font-bold text-white">{initials}</span>
+              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">
+                {isPending ?
+                  <span className="loading loading-spinner text-primary">
+                  </span> : displayName}</span>
+                <span className="block text-[11px] text-slate-400">School owner</span>
+              </span>
             </button>
           </div>
         </header>
@@ -96,9 +98,9 @@ const AdminDashboardLayout = () => {
       <div className="drawer-side z-40">
         <label htmlFor="admin-drawer" aria-label="Close navigation menu" className="drawer-overlay" />
 
-        <aside className="flex min-h-full w-[272px] flex-col border-r border-slate-800 bg-[#0f172a] shadow-2xl shadow-slate-950/20">
-          <header className="flex h-[72px] shrink-0 items-center gap-3 border-b border-slate-800 px-5">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-950/40">
+        <aside className="flex min-h-full w-68 flex-col border-r border-slate-800 bg-[#0f172a] shadow-2xl shadow-slate-950/20">
+          <header className="flex h-18 shrink-0 items-center gap-3 border-b border-slate-800 px-5">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-950/40">
               <School className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
@@ -116,10 +118,9 @@ const AdminDashboardLayout = () => {
                     to={to}
                     end={to === "/admin"}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                        isActive
-                          ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
-                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${isActive
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
                       }`
                     }
                   >
@@ -134,32 +135,37 @@ const AdminDashboardLayout = () => {
             <NavLink
               to="/admin/settings"
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                  isActive
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${isActive
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
                 }`
               }
             >
               <Settings className="size-[18px]" aria-hidden="true" />
-              Settings
+              <span>Settings</span>
             </NavLink>
           </nav>
 
           <div className="m-3 rounded-xl border border-slate-800 bg-slate-900/70 p-3.5">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-slate-800 text-blue-400"><GraduationCap className="size-4" /></div>
-              <div><p className="text-xs font-semibold text-slate-100">Academic year 2026–27</p><p className="mt-0.5 text-[11px] text-slate-400">Term 3 in progress</p></div>
+              <div className="flex size-8 items-center justify-center rounded-lg bg-slate-800 text-blue-400">
+                <GraduationCap className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-100">Academic year 2026–27</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">Term 3 in progress</p>
+              </div>
             </div>
           </div>
           <div className="px-3 pb-4">
             <button
               type="button"
               onClick={handleLogout}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-rose-500/10 hover:text-rose-300"
+              disabled={isLoggingOut}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <LogOut className="size-[18px]" aria-hidden="true" />
-              Log out
+              {isLoggingOut ? "Logging out..." : "Logout"}
             </button>
           </div>
         </aside>

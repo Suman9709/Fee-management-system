@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from "react"
+import axios from "axios"
 import { LockIcon, UserIcon } from "@phosphor-icons/react"
 import { useNavigate } from "react-router-dom"
+import type { UserRole } from "@/api/adminApi/adminApi"
+import { useLogin } from "@/hooks/authHooks/useAuth"
 
 type Role = "Admin" | "Office Staff" | "Parent"
 
@@ -11,19 +14,33 @@ const LoginPage = () => {
   const [role, setRole] = useState<Role>("Admin")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [formError, setFormError] = useState("")
+  const { mutateAsync: login, isPending } = useLogin()
 
   const selectRole = (nextRole: Role) => {
     setRole(nextRole)
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const portalPaths: Record<Role, string> = {
-      Admin: "/admin",
-      "Office Staff": "/staff",
-      Parent: "/parent",
+    setFormError("")
+
+    const portalPaths: Record<UserRole, string> = {
+      admin: "/admin",
+      staff: "/staff",
+      student: "/parent",
+      user: "/",
     }
-    navigate(portalPaths[role], { replace: true })
+
+    try {
+      const currentUser = await login({ username, password })
+      navigate(portalPaths[currentUser.role], { replace: true })
+    } catch (error) {
+      const message = axios.isAxiosError<{ detail?: string }>(error)
+        ? error.response?.data?.detail
+        : undefined
+      setFormError(message || "Unable to sign in. Check your username and password.")
+    }
   }
 
   return (
@@ -126,12 +143,24 @@ const LoginPage = () => {
               </label>
 
               <button
-                className="h-14 w-full rounded-lg bg-[#dfb94b] text-base font-bold text-[#17120a] shadow-[0_8px_24px_rgba(214,171,52,0.12)] transition hover:bg-[#ecc95e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e0b947] active:translate-y-px"
+                aria-busy={isPending}
+                className="h-14 w-full rounded-lg bg-[#dfb94b] text-base font-bold text-[#17120a] shadow-[0_8px_24px_rgba(214,171,52,0.12)] transition hover:bg-[#ecc95e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e0b947] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={isPending}
                 type="submit"
               >
-                Log In to Portal
+                {isPending ? (
+                  <>
+                    "Signing in…"
+                    <span className="loading loading-spinner" />
+                  </>
+                  ) : "Log In to Portal"}
               </button>
 
+              {formError && (
+                <p aria-live="polite" className="mt-4 text-sm text-red-400" role="alert">
+                  {formError}
+                </p>
+              )}
 
             </form>
           </div>
