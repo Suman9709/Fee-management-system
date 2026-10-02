@@ -112,3 +112,18 @@ class StudentPasswordChangeSerializer(serializers.Serializer):
         validate_password(attrs['password'], user=self.context['user'])
         attrs.pop('password_confirmation')
         return attrs
+    
+    
+class StudentPasswordResetSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    password_confirmation = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirmation']:
+            raise serializers.ValidationError(
+                {'password_confirmation': 'Passwords do not match.'}
+            )
+
+        validate_password(attrs['password'])
+        attrs.pop('password_confirmation')
+        return attrs
