@@ -64,6 +64,25 @@ class CookieAuthenticationTests(APITestCase):
         self.assertEqual(response.cookies['access_token'].value, '')
         self.assertEqual(response.cookies['refresh_token'].value, '')
 
+    def test_cookie_login_supports_vite_loopback_origin(self):
+        origin = 'http://127.0.0.1:5173'
+        csrf_response = self.client.get(reverse('csrf-cookie'), HTTP_ORIGIN=origin)
+        csrf_token = self.client.cookies['csrftoken'].value
+
+        self.assertEqual(csrf_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(csrf_response.headers['access-control-allow-origin'], origin)
+
+        response = self.client.post(
+            reverse('cookie-login'),
+            {'username': 'cookie-staff', 'password': 'safe-test-password'},
+            format='json',
+            HTTP_ORIGIN=origin,
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.headers['access-control-allow-origin'], origin)
+
     def test_current_user_returns_staff_admin_and_student_roles(self):
         self.client.force_authenticate(self.staff_user)
         response = self.client.get(reverse('current-user'))
