@@ -3,6 +3,9 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from fees.models import ClassFeeStructure, FeeInvoice, TransportLocation
+from fees.services import academic_year_for
+
 from .models import Student
 
 
@@ -21,6 +24,11 @@ class StudentManagementApiTests(APITestCase):
         self.regular_user = user_model.objects.create_user(
             username='regular-user',
             password='regular-password',
+        )
+        self.class_fee = ClassFeeStructure.objects.create(
+            academic_year=academic_year_for(),
+            class_name='10',
+            monthly_school_fee='1500.00',
         )
         self.student_payload = {
             'student_id': 'stu-2026-00001',
@@ -55,6 +63,10 @@ class StudentManagementApiTests(APITestCase):
         self.assertEqual(student.user.username, 'STU-2026-00001')
         self.assertTrue(student.user.check_password('PermanentPassword123'))
         self.assertFalse(student.must_change_password)
+        invoice = FeeInvoice.objects.get(student=student)
+        self.assertEqual(invoice.school_fee_amount, 1500)
+        self.assertEqual(invoice.transport_fee_amount, 0)
+        self.assertEqual(invoice.total_amount, 1500)
 
         response = self.client.patch(
             reverse('student-detail', kwargs={'student_id': student.student_id}),
@@ -66,14 +78,56 @@ class StudentManagementApiTests(APITestCase):
         student.refresh_from_db()
         self.assertEqual(student.section, 'B')
 
-        user_id = student.user_id
         response = self.client.delete(
             reverse('student-detail', kwargs={'student_id': student.student_id})
         )
 
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Student.objects.filter(pk=student.pk).exists())
-        self.assertFalse(get_user_model().objects.filter(pk=user_id).exists())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('fee invoices', response.data['detail'])
+        self.assertTrue(Student.objects.filter(pk=student.pk).exists())
+
+    def test_superuser_can_create_a_student(self):
+        self.client.force_authenticate(self.admin_user)
+        payload = {
+            **self.student_payload,
+            'student_id': 'stu-2026-00003',
+        }
+
+        response = self.client.post(reverse('student-list'), payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['student_id'], 'STU-2026-00003')
+        self.assertTrue(Student.objects.filter(student_id='STU-2026-00003').exists())
+
+    def test_student_invoice_includes_selected_transport_fee(self):
+        transport_location = TransportLocation.objects.create(
+            location_name='Barauni Test Stop',
+            monthly_transport_fee='700.00',
+        )
+        payload = {
+            **self.student_payload,
+            'student_id': 'stu-2026-00004',
+            'transport_location': transport_location.pk,
+        }
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(reverse('student-list'), payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        invoice = FeeInvoice.objects.get(student__student_id='STU-2026-00004')
+        self.assertEqual(invoice.school_fee_amount, 1500)
+        self.assertEqual(invoice.transport_fee_amount, 700)
+        self.assertEqual(invoice.total_amount, 2200)
+
+    def test_student_creation_requires_an_active_class_fee(self):
+        self.class_fee.delete()
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(reverse('student-list'), self.student_payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('class_name', response.data)
+        self.assertFalse(Student.objects.filter(student_id='STU-2026-00001').exists())
 
     def test_only_superuser_can_change_a_student_password(self):
         student = Student.objects.create_with_user(

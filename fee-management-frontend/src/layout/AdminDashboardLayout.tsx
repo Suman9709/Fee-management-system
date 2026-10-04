@@ -22,6 +22,7 @@ const navigationItems: NavigationItem[] = [
 const pageTitles: Record<string, string> = {
   "/admin": "Owner dashboard",
   "/admin/students": "Student overview",
+  "/admin/students/new": "Add student",
   "/admin/fee-management": "Fee analytics",
   "/admin/payments": "Collection reports",
   "/admin/defaulters": "Outstanding fees",

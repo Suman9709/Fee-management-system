@@ -81,6 +81,17 @@ class StudentCreateSerializer(serializers.ModelSerializer):
 
         return student_id
 
+    def validate_class_name(self, value):
+        return value.strip()
+
+    def validate_section(self, value):
+        return value.strip()
+
+    def validate_transport_location(self, value):
+        if value and not value.is_active:
+            raise serializers.ValidationError('Select an active transport location.')
+        return value
+
 
 class StudentUpdateSerializer(serializers.ModelSerializer):
     class Meta:

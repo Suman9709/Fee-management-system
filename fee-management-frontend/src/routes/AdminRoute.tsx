@@ -1,8 +1,9 @@
 import AdminDashboardLayout from "@/layout/AdminDashboardLayout"
+import { CreateStudentPage } from "@/pages/CreateStudentPage"
+import { FeeConfigurationPage } from "@/pages/FeeConfigurationPage"
 import {
   AcademicsPage,
   DefaultersPage,
-  FeeManagementPage,
   InvoicesPage,
   NotificationsPage,
   PaymentsPage,
@@ -21,8 +22,9 @@ export const AdminRoute = () => {
       <Route element={<AdminDashboardLayout />}>
         <Route index element={<AdminDashboardPage />} />
         <Route path="students" element={<StudentsPage />} />
+        <Route path="students/new" element={<CreateStudentPage portal="admin" />} />
         <Route path="academics" element={<AcademicsPage />} />
-        <Route path="fee-management" element={<FeeManagementPage />} />
+        <Route path="fee-management" element={<FeeConfigurationPage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="defaulters" element={<DefaultersPage />} />

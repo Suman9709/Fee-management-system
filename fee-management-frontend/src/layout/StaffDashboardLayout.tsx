@@ -28,10 +28,14 @@ const navigationItems = [
   { label: "Notifications", to: "/staff/notifications", icon: Bell },
 ]
 
+const pageTitles: Record<string, string> = {
+  "/staff/students/new": "Add student",
+}
+
 const StaffDashboardLayout = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const activePage = navigationItems.find((item) => item.to === pathname)?.label ?? "Office staff workspace"
+  const activePage = pageTitles[pathname] ?? navigationItems.find((item) => item.to === pathname)?.label ?? "Office staff workspace"
   const { mutateAsync: logout, isPending: isLoggingOut, isError: logoutFailed } = useLogout()
 
   const handleLogout = async () => {

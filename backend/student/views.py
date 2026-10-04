@@ -1,9 +1,14 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import BasePermission, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+
+from fees.services import create_current_month_invoice_for_student
+from fees.models import FeeInvoice
 
 from .models import Student
 from .serializers import (
@@ -40,7 +45,16 @@ class StudentViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        student = Student.objects.create_with_user(**serializer.validated_data)
+        try:
+            with transaction.atomic():
+                student = Student.objects.create_with_user(**serializer.validated_data)
+                create_current_month_invoice_for_student(
+                    student,
+                    created_by=request.user,
+                )
+        except DjangoValidationError as error:
+            detail = error.message_dict if hasattr(error, 'message_dict') else error.messages
+            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
 
         response_data = StudentSerializer(student, context=self.get_serializer_context()).data
         headers = self.get_success_headers(response_data)
@@ -68,6 +82,16 @@ class StudentViewSet(ModelViewSet):
         return Response({'detail': 'Student password changed successfully.'})
 
     def perform_destroy(self, instance):
+        if FeeInvoice.objects.filter(student=instance).exists():
+            raise DRFValidationError(
+                {
+                    'detail': (
+                        'This student has fee invoices and cannot be deleted. '
+                        'Keep the financial record instead.'
+                    )
+                }
+            )
+
         # Deleting the linked user also removes its one-to-one student profile.
         with transaction.atomic():
             instance.user.delete()

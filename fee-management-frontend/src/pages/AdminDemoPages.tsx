@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   Bell,
   CheckCircle2,
@@ -91,6 +92,7 @@ const students = Array.from({ length: studentDirectoryTotal }, (_, index) => {
 })
 
 export const StudentsPage = () => {
+  const navigate = useNavigate()
   const [query, setQuery] = useState("")
   const [grade, setGrade] = useState("All grades")
   const [notice, setNotice] = useState("")
@@ -120,7 +122,7 @@ export const StudentsPage = () => {
         title="Students"
         description="Manage enrolments, guardian information, and individual fee status."
         action={
-          <button onClick={() => setNotice("Student admission form opened for the demo.")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
+          <button onClick={() => navigate("/admin/students/new")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
             <Plus className="size-4" /> Add student
           </button>
         }

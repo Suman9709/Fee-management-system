@@ -3,6 +3,9 @@ from datetime import date
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
 
 from student.models import Student
 
@@ -80,3 +83,57 @@ class FeeModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             invalid_invoice.full_clean()
+
+
+class FeeConfigurationApiTests(APITestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.admin_user = user_model.objects.create_superuser(
+            username='fee-admin',
+            password='safe-test-password',
+        )
+        self.staff_user = user_model.objects.create_user(
+            username='fee-staff-api',
+            password='safe-test-password',
+            is_staff=True,
+        )
+
+    def test_admin_can_configure_class_and_transport_fees(self):
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            reverse('class-fee-list'),
+            {
+                'academic_year': '2026-27',
+                'class_name': '10',
+                'monthly_school_fee': '1800.00',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(self.admin_user)
+        response = self.client.post(
+            reverse('class-fee-list'),
+            {
+                'academic_year': '2026-27',
+                'class_name': '10',
+                'monthly_school_fee': '1800.00',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(
+            reverse('transport-location-list'),
+            {
+                'location_name': 'Barauni Test Stop',
+                'monthly_transport_fee': '750.00',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.get(reverse('class-fee-list'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]['class_name'], '10')

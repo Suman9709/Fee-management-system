@@ -1,4 +1,5 @@
 import StaffDashboardLayout from "@/layout/StaffDashboardLayout"
+import { CreateStudentPage } from "@/pages/CreateStudentPage"
 import {
   StaffAttendancePage,
   StaffAnnouncementsPage,
@@ -17,6 +18,7 @@ export const StaffRoute = () => (
     <Route element={<StaffDashboardLayout />}>
       <Route index element={<StaffDashboardPage />} />
       <Route path="students" element={<StaffStudentsPage />} />
+      <Route path="students/new" element={<CreateStudentPage portal="staff" />} />
       <Route path="fee-setup" element={<StaffFeeSetupPage />} />
       <Route path="invoices" element={<StaffInvoicesPage />} />
       <Route path="payments" element={<StaffPaymentsPage />} />
