@@ -1,5 +1,6 @@
 import StaffDashboardLayout from "@/layout/StaffDashboardLayout"
 import { CreateStudentPage } from "@/pages/CreateStudentPage"
+import { StaffStudentSettingsPage } from "@/pages/StaffStudentSettingsPage"
 import {
   StaffAttendancePage,
   StaffAnnouncementsPage,
@@ -19,6 +20,7 @@ export const StaffRoute = () => (
       <Route index element={<StaffDashboardPage />} />
       <Route path="students" element={<StaffStudentsPage />} />
       <Route path="students/new" element={<CreateStudentPage portal="staff" />} />
+      <Route path="student-setup" element={<StaffStudentSettingsPage />} />
       <Route path="fee-setup" element={<StaffFeeSetupPage />} />
       <Route path="invoices" element={<StaffInvoicesPage />} />
       <Route path="payments" element={<StaffPaymentsPage />} />

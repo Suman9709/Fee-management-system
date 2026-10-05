@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from .models import Student
+from .models import Classroom, Student, StudentAttendance
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -108,6 +108,92 @@ class StudentUpdateSerializer(serializers.ModelSerializer):
             'address',
             'transport_location',
         ]
+
+    def validate_class_name(self, value):
+        return value.strip()
+
+    def validate_section(self, value):
+        return value.strip()
+
+    def validate_transport_location(self, value):
+        if value and not value.is_active:
+            raise serializers.ValidationError('Select an active transport location.')
+        return value
+
+
+class ClassroomSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Classroom
+        fields = [
+            'id',
+            'academic_year',
+            'class_name',
+            'section',
+            'class_teacher',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_academic_year(self, value):
+        return value.strip()
+
+    def validate_class_name(self, value):
+        return value.strip()
+
+    def validate_section(self, value):
+        return value.strip()
+
+    def validate_class_teacher(self, value):
+        return value.strip()
+
+
+class StudentAttendanceSerializer(serializers.ModelSerializer):
+    student_id = serializers.CharField(source='student.student_id', read_only=True)
+    student_name = serializers.CharField(source='student.full_name', read_only=True)
+    attendance_percentage = serializers.FloatField(read_only=True)
+
+    class Meta:
+        model = StudentAttendance
+        fields = [
+            'id',
+            'student',
+            'student_id',
+            'student_name',
+            'attendance_month',
+            'working_days',
+            'days_present',
+            'attendance_percentage',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'student_id',
+            'student_name',
+            'attendance_percentage',
+            'created_at',
+            'updated_at',
+        ]
+
+    def validate(self, attrs):
+        attendance_month = attrs.get(
+            'attendance_month',
+            getattr(self.instance, 'attendance_month', None),
+        )
+        working_days = attrs.get('working_days', getattr(self.instance, 'working_days', None))
+        days_present = attrs.get('days_present', getattr(self.instance, 'days_present', None))
+
+        if attendance_month and attendance_month.day != 1:
+            raise serializers.ValidationError(
+                {'attendance_month': 'Use the first day of the month.'}
+            )
+        if working_days is not None and days_present is not None and days_present > working_days:
+            raise serializers.ValidationError(
+                {'days_present': 'Days present cannot be greater than working days.'}
+            )
+        return attrs
 
 
 class StudentPasswordChangeSerializer(serializers.Serializer):

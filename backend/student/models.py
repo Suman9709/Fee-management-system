@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator
 from django.db import models, transaction
 
 
@@ -64,5 +65,75 @@ class Student(models.Model):
 
     def __str__(self):
         return f'{self.student_id} - {self.full_name}'
+
+
+class Classroom(models.Model):
+    """A class-and-section assignment managed by office staff."""
+
+    academic_year = models.CharField(max_length=20)
+    class_name = models.CharField(max_length=50)
+    section = models.CharField(max_length=10)
+    class_teacher = models.CharField(max_length=100, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['academic_year', 'class_name', 'section'],
+                name='unique_classroom_per_academic_year',
+            ),
+        ]
+        ordering = ['academic_year', 'class_name', 'section']
+
+    def __str__(self):
+        return f'{self.academic_year} - {self.class_name}-{self.section}'
+
+
+class StudentAttendance(models.Model):
+    """One monthly attendance summary for a student."""
+
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='attendance_records',
+    )
+    attendance_month = models.DateField(
+        help_text='Use the first day of the month, for example 2026-10-01.',
+    )
+    working_days = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
+    days_present = models.PositiveSmallIntegerField(validators=[MinValueValidator(0)])
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student', 'attendance_month'],
+                name='one_attendance_record_per_student_month',
+            ),
+        ]
+        ordering = ['-attendance_month']
+
+    @property
+    def attendance_percentage(self):
+        return round((self.days_present / self.working_days) * 100, 2)
+
+    def clean(self):
+        super().clean()
+        if self.attendance_month and self.attendance_month.day != 1:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError({'attendance_month': 'Use the first day of the month.'})
+        if self.days_present > self.working_days:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError(
+                {'days_present': 'Days present cannot be greater than working days.'}
+            )
+
+    def __str__(self):
+        return f'{self.student.student_id} - {self.attendance_month:%b %Y}'
     
     

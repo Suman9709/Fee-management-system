@@ -50,7 +50,7 @@ def create_current_month_invoice_for_student(student, *, created_by, on_date=Non
     billing_month = on_date.replace(day=1)
     due_date = on_date.replace(day=min(10, monthrange(on_date.year, on_date.month)[1]))
 
-    invoice, _ = FeeInvoice.objects.get_or_create(
+    invoice, created = FeeInvoice.objects.get_or_create(
         student=student,
         academic_year=academic_year,
         billing_month=billing_month,
@@ -62,4 +62,22 @@ def create_current_month_invoice_for_student(student, *, created_by, on_date=Non
             'created_by': created_by,
         },
     )
+    if (
+        not created
+        and invoice.status in (FeeInvoice.Status.UNPAID, FeeInvoice.Status.OVERDUE)
+        and not invoice.payments.exists()
+    ):
+        invoice.school_fee_amount = class_fee.monthly_school_fee
+        invoice.transport_fee_amount = transport_fee
+        invoice.total_amount = class_fee.monthly_school_fee + transport_fee
+        invoice.due_date = due_date
+        invoice.save(
+            update_fields=[
+                'school_fee_amount',
+                'transport_fee_amount',
+                'total_amount',
+                'due_date',
+                'updated_at',
+            ]
+        )
     return invoice

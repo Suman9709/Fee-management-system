@@ -11,6 +11,7 @@ import {
   ReceiptText,
   School,
   Search,
+  UserRoundCog,
   UsersRound,
   WalletCards,
 } from "lucide-react"
@@ -19,6 +20,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 const navigationItems = [
   { label: "Dashboard", to: "/staff", icon: LayoutDashboard },
   { label: "Student Records", to: "/staff/students", icon: UsersRound },
+  { label: "Student Setup", to: "/staff/student-setup", icon: UserRoundCog },
   { label: "Fee Setup", to: "/staff/fee-setup", icon: WalletCards },
   { label: "Invoices & Billing", to: "/staff/invoices", icon: FileText },
   { label: "Payments", to: "/staff/payments", icon: ReceiptText },

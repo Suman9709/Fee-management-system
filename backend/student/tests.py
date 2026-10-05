@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 from fees.models import ClassFeeStructure, FeeInvoice, TransportLocation
 from fees.services import academic_year_for
 
-from .models import Student
+from .models import Classroom, Student, StudentAttendance
 
 
 class StudentManagementApiTests(APITestCase):
@@ -167,3 +167,89 @@ class StudentManagementApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class StudentDashboardApiTests(APITestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create_user(
+            username='dashboard-staff',
+            password='safe-test-password',
+            is_staff=True,
+        )
+        ClassFeeStructure.objects.create(
+            academic_year=academic_year_for(),
+            class_name='10',
+            monthly_school_fee='1500.00',
+        )
+        self.student = Student.objects.create_with_user(
+            student_id='STU-DASHBOARD-001',
+            password='safe-test-password',
+            full_name='Dashboard Student',
+            date_of_birth='2010-01-01',
+            class_name='10',
+            section='A',
+            parent_name='Dashboard Parent',
+            parent_phone='9876543210',
+            address='Test Address',
+        )
+        Classroom.objects.create(
+            academic_year=academic_year_for(),
+            class_name='10',
+            section='A',
+            class_teacher='Anita Kumari',
+        )
+        StudentAttendance.objects.create(
+            student=self.student,
+            attendance_month='2026-10-01',
+            working_days=22,
+            days_present=20,
+        )
+        FeeInvoice.objects.create(
+            student=self.student,
+            academic_year=academic_year_for(),
+            billing_month='2026-10-01',
+            school_fee_amount='1500.00',
+            transport_fee_amount='0.00',
+            total_amount='1500.00',
+            due_date='2026-10-10',
+            created_by=self.staff_user,
+        )
+
+    def test_staff_can_assign_classroom_and_record_attendance(self):
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            reverse('classroom-list'),
+            {
+                'academic_year': academic_year_for(),
+                'class_name': '10',
+                'section': 'B',
+                'class_teacher': 'Rajesh Kumar',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(
+            reverse('student-attendance-list'),
+            {
+                'student': self.student.pk,
+                'attendance_month': '2026-11-01',
+                'working_days': 20,
+                'days_present': 19,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['attendance_percentage'], 95.0)
+
+    def test_student_dashboard_returns_only_their_profile_data(self):
+        self.client.force_authenticate(self.student.user)
+
+        response = self.client.get(reverse('student-dashboard'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['student']['student_id'], 'STU-DASHBOARD-001')
+        self.assertEqual(response.data['classroom']['class_teacher'], 'Anita Kumari')
+        self.assertEqual(response.data['attendance'][0]['days_present'], 20)
+        self.assertEqual(response.data['fee_summary']['total_outstanding'], 1500)

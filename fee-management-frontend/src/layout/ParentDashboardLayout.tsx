@@ -18,7 +18,7 @@ import { useLogout, useProfile } from "@/hooks/authHooks/useAuth"
 
 const navigationItems = [
   { label: "Dashboard", to: "/parent", icon: LayoutDashboard },
-  { label: "My Children", to: "/parent/children", icon: UsersRound },
+  { label: "My Profile", to: "/parent/children", icon: UsersRound },
   { label: "Fees & Payments", to: "/parent/fees", icon: WalletCards },
   { label: "Attendance", to: "/parent/attendance", icon: CalendarDays },
   { label: "Timetable", to: "/parent/timetable", icon: BookOpen },
@@ -29,7 +29,7 @@ const navigationItems = [
 const ParentDashboardLayout = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const activePage = navigationItems.find((item) => item.to === pathname)?.label ?? "Parent portal"
+  const activePage = navigationItems.find((item) => item.to === pathname)?.label ?? "Student portal"
   const { mutateAsync: logout, isPending: isLoggingOut, isError: logoutFailed } = useLogout()
 
   const handleLogout = async () => {
@@ -55,7 +55,7 @@ const ParentDashboardLayout = () => {
             <Menu className="size-5" />
           </label>
           <div>
-            <p className="text-xs font-medium text-slate-400">Parent portal</p>
+            <p className="text-xs font-medium text-slate-400">Student portal</p>
             <h1 className="mt-0.5 text-base font-semibold text-slate-900">{activePage}</h1>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -69,7 +69,7 @@ const ParentDashboardLayout = () => {
             </button>
             <div className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2">
               <span className="flex size-8 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-indigo-600 text-xs font-bold text-white">{initials}</span>
-              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">{isPending ? <span className="loading loading-spinner text-primary"></span> : displayName}</span><span className="block text-[11px] text-slate-400">Parent / Guardian</span></span>
+              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">{isPending ? <span className="loading loading-spinner text-primary"></span> : displayName}</span><span className="block text-[11px] text-slate-400">Student</span></span>
             </div>
           </div>
         </header>
@@ -82,9 +82,9 @@ const ParentDashboardLayout = () => {
         <aside className="flex min-h-full w-68 flex-col border-r border-slate-800 bg-[#0f172a] shadow-2xl shadow-slate-950/20">
           <header className="flex h-18 shrink-0 items-center gap-3 border-b border-slate-800 px-5">
             <div className="flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-950/40"><School className="size-5" /></div>
-            <div className="min-w-0"><p className="truncate text-sm font-bold tracking-tight text-white">Greenfield Academy</p><p className="mt-0.5 text-xs text-slate-400">Parent portal</p></div>
+            <div className="min-w-0"><p className="truncate text-sm font-bold tracking-tight text-white">Greenfield Academy</p><p className="mt-0.5 text-xs text-slate-400">Student portal</p></div>
           </header>
-          <nav className="flex-1 overflow-y-auto px-3 py-6" aria-label="Parent navigation">
+          <nav className="flex-1 overflow-y-auto px-3 py-6" aria-label="Student navigation">
             <p className="mb-2 px-3 text-[11px] font-bold tracking-[0.12em] text-slate-500 uppercase">Workspace</p>
             <ul className="space-y-1">
               {navigationItems.map(({ label, to, icon: Icon }) => (
