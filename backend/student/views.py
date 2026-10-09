@@ -1,5 +1,8 @@
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError as DRFValidationError
@@ -8,12 +11,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
+from fees.invoice_document import render_invoice_pdf
 from fees.models import FeeInvoice
 from fees.services import create_current_month_invoice_for_student, mark_overdue_invoices
 
-from .models import Classroom, Student, StudentAttendance
+from .models import Classroom, Guardian, Student, StudentAttendance
 from .serializers import (
     ClassroomSerializer,
+    GuardianCreateSerializer,
+    GuardianSerializer,
     StudentCreateSerializer,
     StudentAttendanceSerializer,
     StudentPasswordChangeSerializer,
@@ -123,6 +129,41 @@ class StudentViewSet(ModelViewSet):
             instance.user.delete()
 
 
+class GuardianViewSet(ModelViewSet):
+    """Office staff create and manage parent accounts and their children."""
+
+    queryset = Guardian.objects.select_related('user').prefetch_related('students__user')
+    permission_classes = [IsAdminUser]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return GuardianCreateSerializer
+        return GuardianSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        students = data.pop('students')
+        email = data.pop('email', '')
+        username = data.pop('username')
+        password = data.pop('password')
+
+        with transaction.atomic():
+            user = get_user_model().objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+            )
+            guardian = Guardian.objects.create(user=user, **data)
+            guardian.students.set(students)
+
+        return Response(
+            GuardianSerializer(guardian, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class ClassroomViewSet(ModelViewSet):
     """Staff manage class sections and their class teacher."""
 
@@ -177,7 +218,8 @@ class StudentDashboardView(APIView):
         invoice_data = []
         total_outstanding = 0
         for invoice in invoices:
-            paid_amount = sum(payment.amount for payment in invoice.payments.all())
+            payments = list(invoice.payments.all())
+            paid_amount = sum(payment.amount for payment in payments)
             outstanding_amount = invoice.total_amount - paid_amount
             total_outstanding += outstanding_amount
             invoice_data.append(
@@ -190,6 +232,17 @@ class StudentDashboardView(APIView):
                     'total_amount': invoice.total_amount,
                     'paid_amount': paid_amount,
                     'outstanding_amount': outstanding_amount,
+                    'latest_payment_date': payments[0].payment_date if payments else None,
+                    'payments': [
+                        {
+                            'id': payment.id,
+                            'amount': payment.amount,
+                            'payment_date': payment.payment_date,
+                            'method': payment.method,
+                            'reference_number': payment.reference_number,
+                        }
+                        for payment in payments
+                    ],
                     'due_date': invoice.due_date,
                     'status': invoice.status,
                 }
@@ -213,3 +266,107 @@ class StudentDashboardView(APIView):
                 'fee_summary': {'total_outstanding': total_outstanding},
             }
         )
+
+
+class GuardianDashboardView(APIView):
+    """Return all academic and fee data for the guardian's linked children."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            guardian = request.user.guardian_profile
+        except AttributeError:
+            raise PermissionDenied('This dashboard is available to guardian accounts only.')
+
+        mark_overdue_invoices()
+        children = []
+        for student in guardian.students.select_related('user', 'transport_location').all():
+            classroom = Classroom.objects.filter(
+                class_name=student.class_name,
+                section=student.section,
+                is_active=True,
+            ).order_by('-academic_year').first()
+            attendance = StudentAttendance.objects.filter(student=student)[:6]
+            invoices = FeeInvoice.objects.filter(student=student).prefetch_related('payments')[:12]
+            invoice_data = []
+            total_outstanding = 0
+            for invoice in invoices:
+                payments = list(invoice.payments.all())
+                paid_amount = sum(payment.amount for payment in payments)
+                outstanding_amount = invoice.total_amount - paid_amount
+                total_outstanding += outstanding_amount
+                invoice_data.append(
+                    {
+                        'id': invoice.id,
+                        'academic_year': invoice.academic_year,
+                        'billing_month': invoice.billing_month,
+                        'school_fee_amount': invoice.school_fee_amount,
+                        'transport_fee_amount': invoice.transport_fee_amount,
+                        'total_amount': invoice.total_amount,
+                        'paid_amount': paid_amount,
+                        'outstanding_amount': outstanding_amount,
+                        'latest_payment_date': payments[0].payment_date if payments else None,
+                        'payments': [
+                            {
+                                'id': payment.id,
+                                'amount': payment.amount,
+                                'payment_date': payment.payment_date,
+                                'method': payment.method,
+                                'reference_number': payment.reference_number,
+                            }
+                            for payment in payments
+                        ],
+                        'due_date': invoice.due_date,
+                        'status': invoice.status,
+                    }
+                )
+            children.append(
+                {
+                    'student': StudentSerializer(student).data,
+                    'classroom': (
+                        {
+                            'academic_year': classroom.academic_year,
+                            'class_name': classroom.class_name,
+                            'section': classroom.section,
+                            'class_teacher': classroom.class_teacher,
+                        }
+                        if classroom
+                        else None
+                    ),
+                    'attendance': StudentAttendanceSerializer(attendance, many=True).data,
+                    'invoices': invoice_data,
+                    'fee_summary': {'total_outstanding': total_outstanding},
+                }
+            )
+
+        return Response({'guardian': GuardianSerializer(guardian).data, 'children': children})
+
+
+class InvoiceDownloadView(APIView):
+    """Download a PDF invoice when it belongs to the signed-in family."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, invoice_id):
+        invoice = get_object_or_404(
+            FeeInvoice.objects.select_related('student').prefetch_related('payments'), pk=invoice_id
+        )
+        can_access = request.user.is_staff
+        if not can_access:
+            try:
+                can_access = request.user.student_profile.pk == invoice.student_id
+            except Student.DoesNotExist:
+                pass
+        if not can_access:
+            try:
+                can_access = request.user.guardian_profile.students.filter(pk=invoice.student_id).exists()
+            except Guardian.DoesNotExist:
+                pass
+        if not can_access:
+            raise PermissionDenied('You cannot download this invoice.')
+
+        response = HttpResponse(render_invoice_pdf(invoice), content_type='application/pdf')
+        filename = f'fee-invoice-{invoice.student.student_id}-{invoice.billing_month:%Y-%m}.pdf'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response

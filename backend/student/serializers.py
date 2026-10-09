@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from .models import Classroom, Student, StudentAttendance
+from .models import Classroom, Guardian, Student, StudentAttendance
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -119,6 +119,51 @@ class StudentUpdateSerializer(serializers.ModelSerializer):
         if value and not value.is_active:
             raise serializers.ValidationError('Select an active transport location.')
         return value
+
+
+class GuardianSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    students = StudentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Guardian
+        fields = [
+            'id', 'username', 'email', 'full_name', 'phone', 'students',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class GuardianCreateSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=100)
+    phone = serializers.CharField(max_length=15)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    password_confirmation = serializers.CharField(write_only=True, trim_whitespace=False)
+    student_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Student.objects.all(), many=True, source='students', allow_empty=False
+    )
+
+    def validate_username(self, value):
+        username = value.strip()
+        if get_user_model().objects.filter(username__iexact=username).exists():
+            raise serializers.ValidationError('This username is already in use.')
+        return username
+
+    def validate_full_name(self, value):
+        return value.strip()
+
+    def validate_phone(self, value):
+        return value.strip()
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirmation']:
+            raise serializers.ValidationError({'password_confirmation': 'Passwords do not match.'})
+        validate_password(attrs['password'])
+        attrs.pop('password_confirmation')
+        return attrs
 
 
 class ClassroomSerializer(serializers.ModelSerializer):

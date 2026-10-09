@@ -134,6 +134,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     invoice_student_name = serializers.CharField(source='invoice.student.full_name', read_only=True)
     invoice_billing_month = serializers.DateField(source='invoice.billing_month', read_only=True)
     received_by_name = serializers.CharField(source='received_by.username', read_only=True)
+    updated_by_name = serializers.CharField(source='updated_by.username', read_only=True)
 
     class Meta:
         model = Payment
@@ -150,6 +151,9 @@ class PaymentSerializer(serializers.ModelSerializer):
             'received_by',
             'received_by_name',
             'created_at',
+            'updated_by',
+            'updated_by_name',
+            'updated_at',
         ]
         read_only_fields = [
             'id',
@@ -159,16 +163,25 @@ class PaymentSerializer(serializers.ModelSerializer):
             'received_by',
             'received_by_name',
             'created_at',
+            'updated_by',
+            'updated_by_name',
+            'updated_at',
         ]
 
     def validate(self, attrs):
-        invoice = attrs['invoice']
+        invoice = attrs.get('invoice', self.instance.invoice if self.instance else None)
+        if self.instance and 'invoice' in attrs and invoice.pk != self.instance.invoice_id:
+            raise serializers.ValidationError({'invoice': 'A payment cannot be moved to another invoice.'})
         if invoice.status == FeeInvoice.Status.CANCELLED:
             raise serializers.ValidationError({'invoice': 'A cancelled invoice cannot receive payments.'})
 
-        paid_amount = invoice_paid_amount(invoice)
+        amount = attrs.get('amount', self.instance.amount if self.instance else None)
+        payments = invoice.payments.all()
+        if self.instance:
+            payments = payments.exclude(pk=self.instance.pk)
+        paid_amount = sum((payment.amount for payment in payments), start=Decimal('0.00'))
         outstanding_amount = invoice.total_amount - paid_amount
-        if attrs['amount'] > outstanding_amount:
+        if amount > outstanding_amount:
             raise serializers.ValidationError(
                 {'amount': f'Payment exceeds the outstanding balance of {outstanding_amount}.'}
             )

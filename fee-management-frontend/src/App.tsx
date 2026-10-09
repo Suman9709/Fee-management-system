@@ -28,7 +28,7 @@ const App = () => {
         <Route
           path="/parent/*"
           element={
-            <ProtectedRoute allowedRoles={["student"]}>
+            <ProtectedRoute allowedRoles={["parent", "student"]}>
               <ParentRoute />
             </ProtectedRoute>
           }

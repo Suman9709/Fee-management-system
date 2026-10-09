@@ -11,7 +11,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from student.serializers import StudentSerializer
+from student.serializers import GuardianSerializer, StudentSerializer
 
 
 def _set_auth_cookies(response, access_token, refresh_token=None):
@@ -135,6 +135,9 @@ class CurrentUserView(APIView):
         elif user.is_staff:
             role = 'staff'
             profile = None
+        elif hasattr(user, 'guardian_profile'):
+            role = 'parent'
+            profile = GuardianSerializer(user.guardian_profile).data
         elif hasattr(user, 'student_profile'):
             role = 'student'
             profile = StudentSerializer(user.student_profile).data

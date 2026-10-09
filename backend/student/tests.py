@@ -3,8 +3,9 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from fees.models import ClassFeeStructure, FeeInvoice, TransportLocation
+from fees.models import ClassFeeStructure, FeeInvoice, Payment, TransportLocation
 from fees.services import academic_year_for
+from administration.models import Announcement, Audience
 
 from .models import Classroom, Student, StudentAttendance
 
@@ -205,7 +206,7 @@ class StudentDashboardApiTests(APITestCase):
             working_days=22,
             days_present=20,
         )
-        FeeInvoice.objects.create(
+        self.invoice = FeeInvoice.objects.create(
             student=self.student,
             academic_year=academic_year_for(),
             billing_month='2026-10-01',
@@ -253,3 +254,143 @@ class StudentDashboardApiTests(APITestCase):
         self.assertEqual(response.data['classroom']['class_teacher'], 'Anita Kumari')
         self.assertEqual(response.data['attendance'][0]['days_present'], 20)
         self.assertEqual(response.data['fee_summary']['total_outstanding'], 1500)
+
+    def test_student_can_see_paid_date_and_download_only_their_invoice(self):
+        Payment.objects.create(
+            invoice=self.invoice,
+            amount='1500.00',
+            payment_date='2026-10-05',
+            method=Payment.Method.UPI,
+            reference_number='UPI-STUDENT-001',
+            received_by=self.staff_user,
+        )
+        self.client.force_authenticate(self.student.user)
+
+        response = self.client.get(reverse('student-dashboard'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        invoice = response.data['invoices'][0]
+        self.assertEqual(str(invoice['paid_amount']), '1500.00')
+        self.assertEqual(str(invoice['latest_payment_date']), '2026-10-05')
+        self.assertEqual(invoice['payments'][0]['reference_number'], 'UPI-STUDENT-001')
+
+        response = self.client.get(reverse('invoice-download', kwargs={'invoice_id': self.invoice.pk}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('fee-invoice-STU-DASHBOARD-001-2026-10.pdf', response['Content-Disposition'])
+        self.assertTrue(response.content.startswith(b'%PDF-1.4'))
+
+        unrelated_student = Student.objects.create_with_user(
+            student_id='STU-DASHBOARD-002',
+            password='safe-test-password',
+            full_name='Unrelated Student',
+            date_of_birth='2010-01-01',
+            class_name='10',
+            section='A',
+            parent_name='Unrelated Parent',
+            parent_phone='9876543210',
+            address='Test Address',
+        )
+        self.client.force_authenticate(unrelated_student.user)
+        response = self.client.get(reverse('invoice-download', kwargs={'invoice_id': self.invoice.pk}))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class GuardianPortalApiTests(APITestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create_user(
+            username='guardian-staff', password='safe-test-password', is_staff=True
+        )
+        self.student = Student.objects.create_with_user(
+            student_id='STU-GUARDIAN-001',
+            password='PermanentPassword123',
+            full_name='Guardian Student',
+            date_of_birth='2010-01-01',
+            class_name='10',
+            section='A',
+            parent_name='Guardian Parent',
+            parent_phone='9876543210',
+            address='Test Address',
+        )
+
+    def test_linked_parent_account_can_open_parent_portal_and_read_notices(self):
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            reverse('guardian-list'),
+            {
+                'full_name': 'Guardian Parent',
+                'phone': '9876543210',
+                'username': 'guardian-parent',
+                'password': 'PermanentPassword123',
+                'password_confirmation': 'PermanentPassword123',
+                'student_ids': [self.student.pk],
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        guardian_user = user_model = get_user_model().objects.get(username='guardian-parent')
+        Announcement.objects.create(
+            audience=Audience.STUDENTS,
+            title='Fee deadline',
+            message='Please review this fee notice.',
+            published_by=self.staff_user,
+        )
+        self.client.force_authenticate(guardian_user)
+
+        response = self.client.get(reverse('current-user'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['role'], 'parent')
+        self.assertEqual(response.data['profile']['students'][0]['student_id'], self.student.student_id)
+
+        response = self.client.get(reverse('announcement-list'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]['title'], 'Fee deadline')
+
+        response = self.client.get(reverse('parent-dashboard'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['children'][0]['student']['student_id'], self.student.student_id)
+
+    def test_linked_parent_can_see_payment_date_and_download_child_invoice(self):
+        invoice = FeeInvoice.objects.create(
+            student=self.student,
+            academic_year=academic_year_for(),
+            billing_month='2026-10-01',
+            school_fee_amount='1500.00',
+            transport_fee_amount='0.00',
+            total_amount='1500.00',
+            due_date='2026-10-10',
+            created_by=self.staff_user,
+        )
+        Payment.objects.create(
+            invoice=invoice,
+            amount='500.00',
+            payment_date='2026-10-06',
+            method=Payment.Method.CASH,
+            received_by=self.staff_user,
+        )
+        self.client.force_authenticate(self.staff_user)
+        self.client.post(
+            reverse('guardian-list'),
+            {
+                'full_name': 'Guardian Parent',
+                'phone': '9876543210',
+                'username': 'guardian-download',
+                'password': 'PermanentPassword123',
+                'password_confirmation': 'PermanentPassword123',
+                'student_ids': [self.student.pk],
+            },
+            format='json',
+        )
+        guardian_user = get_user_model().objects.get(username='guardian-download')
+        self.client.force_authenticate(guardian_user)
+
+        response = self.client.get(reverse('parent-dashboard'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        parent_invoice = response.data['children'][0]['invoices'][0]
+        self.assertEqual(str(parent_invoice['latest_payment_date']), '2026-10-06')
+        self.assertEqual(str(parent_invoice['payments'][0]['amount']), '500.00')
+
+        response = self.client.get(reverse('invoice-download', kwargs={'invoice_id': invoice.pk}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.content.startswith(b'%PDF-1.4'))

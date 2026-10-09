@@ -1,6 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from "axios"
 
-export type UserRole = "admin" | "staff" | "student" | "user"
+export type UserRole = "admin" | "staff" | "parent" | "student" | "user"
 
 export interface LoginCredentials {
   username: string
@@ -32,6 +32,27 @@ export interface StudentProfile {
   must_change_password: boolean
   created_at: string
   updated_at: string
+}
+
+export interface GuardianProfile {
+  id: number
+  username: string
+  email: string
+  full_name: string
+  phone: string
+  students: StudentProfile[]
+  created_at: string
+  updated_at: string
+}
+
+export interface GuardianCreatePayload {
+  full_name: string
+  phone: string
+  email?: string
+  username: string
+  password: string
+  password_confirmation: string
+  student_ids: number[]
 }
 
 export interface StudentCreatePayload {
@@ -93,6 +114,14 @@ export interface StudentFeeInvoice {
   total_amount: string
   paid_amount: string
   outstanding_amount: string
+  latest_payment_date: string | null
+  payments: Array<{
+    id: number
+    amount: string
+    payment_date: string
+    method: PaymentMethod
+    reference_number: string
+  }>
   due_date: string
   status: string
 }
@@ -103,6 +132,19 @@ export interface StudentDashboardResponse {
   attendance: StudentAttendance[]
   invoices: StudentFeeInvoice[]
   fee_summary: { total_outstanding: string }
+}
+
+export interface GuardianChildDashboard {
+  student: StudentProfile
+  classroom: Pick<Classroom, "academic_year" | "class_name" | "section" | "class_teacher"> | null
+  attendance: StudentAttendance[]
+  invoices: StudentFeeInvoice[]
+  fee_summary: { total_outstanding: string }
+}
+
+export interface GuardianDashboardResponse {
+  guardian: GuardianProfile
+  children: GuardianChildDashboard[]
 }
 
 export interface ClassFeeStructure {
@@ -183,6 +225,9 @@ export interface FeePayment {
   received_by: number
   received_by_name: string
   created_at: string
+  updated_by: number | null
+  updated_by_name: string | null
+  updated_at: string
 }
 
 export interface PaymentPayload {
@@ -192,6 +237,8 @@ export interface PaymentPayload {
   method: PaymentMethod
   reference_number?: string
 }
+
+export type PaymentUpdatePayload = Omit<PaymentPayload, "invoice">
 
 export interface FeeDashboardSummary {
   student_count: number
@@ -219,11 +266,87 @@ export interface FeeDashboardResponse {
   recent_payments: FeePayment[]
 }
 
+export type SchoolAudience = "students" | "staff" | "everyone"
+
+export interface Announcement {
+  id: number
+  audience: SchoolAudience
+  title: string
+  message: string
+  is_published: boolean
+  published_by: number
+  published_by_name: string
+  published_at: string
+  updated_at: string
+}
+
+export type AnnouncementPayload = Pick<Announcement, "audience" | "title" | "message" | "is_published">
+
+export interface SchoolHoliday {
+  id: number
+  audience: SchoolAudience
+  name: string
+  start_date: string
+  end_date: string
+  is_published: boolean
+  created_by: number
+  created_by_name: string
+  created_at: string
+  updated_at: string
+}
+
+export type SchoolHolidayPayload = Pick<
+  SchoolHoliday,
+  "audience" | "name" | "start_date" | "end_date" | "is_published"
+>
+
+export interface TimetableEntry {
+  id: number
+  academic_year: string
+  class_name: string
+  section: string
+  day_of_week: number
+  day_name: string
+  start_time: string
+  end_time: string
+  subject: string
+  room: string
+  teacher_name: string
+  created_by: number
+  created_by_name: string
+  created_at: string
+  updated_at: string
+}
+
+export type TimetableEntryPayload = Pick<
+  TimetableEntry,
+  "academic_year" | "class_name" | "section" | "day_of_week" | "start_time" | "end_time" | "subject" | "room" | "teacher_name"
+>
+
+export type SupportRequestStatus = "open" | "in_progress" | "resolved"
+
+export interface SupportRequest {
+  id: number
+  student: number
+  student_id: string
+  student_name: string
+  subject: string
+  message: string
+  status: SupportRequestStatus
+  office_response: string
+  responded_by: number | null
+  responded_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type SupportRequestPayload = Pick<SupportRequest, "subject" | "message">
+
 export interface CurrentUserResponse {
   authenticated: true
   role: UserRole
   user: User
-  profile: StudentProfile | null
+  profile: StudentProfile | GuardianProfile | null
 }
 
 const adminApi = axios.create({
@@ -302,6 +425,17 @@ export const getStudents = async (): Promise<StudentProfile[]> => {
   return response.data
 }
 
+export const getGuardians = async (): Promise<GuardianProfile[]> => {
+  const response = await adminApi.get<GuardianProfile[]>("/api/guardians/")
+  return response.data
+}
+
+export const createGuardian = async (payload: GuardianCreatePayload): Promise<GuardianProfile> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.post<GuardianProfile>("/api/guardians/", payload)
+  return response.data
+}
+
 export const updateStudent = async (
   studentId: string,
   payload: Partial<Omit<StudentCreatePayload, "student_id" | "password" | "password_confirmation">>,
@@ -360,6 +494,27 @@ export const updateStudentAttendance = async (
 export const getStudentDashboard = async (): Promise<StudentDashboardResponse> => {
   const response = await adminApi.get<StudentDashboardResponse>("/api/student-dashboard/")
   return response.data
+}
+
+export const getGuardianDashboard = async (): Promise<GuardianDashboardResponse> => {
+  const response = await adminApi.get<GuardianDashboardResponse>("/api/parent-dashboard/")
+  return response.data
+}
+
+export const downloadInvoice = async (invoiceId: number): Promise<void> => {
+  const response = await adminApi.get<Blob>(`/api/invoices/${invoiceId}/download/`, {
+    responseType: "blob",
+  })
+  const contentDisposition = response.headers["content-disposition"]
+  const match = /filename="?([^";]+)"?/i.exec(contentDisposition ?? "")
+  const downloadUrl = URL.createObjectURL(response.data)
+  const link = document.createElement("a")
+  link.href = downloadUrl
+  link.download = match?.[1] ?? `fee-invoice-${invoiceId}.pdf`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(downloadUrl)
 }
 
 export const getClassFeeStructures = async (academicYear?: string) => {
@@ -449,10 +604,67 @@ export const recordFeePayment = async (payload: PaymentPayload): Promise<FeePaym
   return response.data
 }
 
+export const updateFeePayment = async (
+  id: number,
+  payload: PaymentUpdatePayload,
+): Promise<FeePayment> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.patch<FeePayment>(`/api/fees/payments/${id}/`, payload)
+  return response.data
+}
+
 export const getFeeDashboard = async (academicYear?: string): Promise<FeeDashboardResponse> => {
   const response = await adminApi.get<FeeDashboardResponse>("/api/fees/dashboard/", {
     params: academicYear ? { academic_year: academicYear } : undefined,
   })
+  return response.data
+}
+
+export const getAnnouncements = async (): Promise<Announcement[]> => {
+  const response = await adminApi.get<Announcement[]>("/api/administration/announcements/")
+  return response.data
+}
+
+export const createAnnouncement = async (payload: AnnouncementPayload): Promise<Announcement> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.post<Announcement>("/api/administration/announcements/", payload)
+  return response.data
+}
+
+export const getSchoolHolidays = async (): Promise<SchoolHoliday[]> => {
+  const response = await adminApi.get<SchoolHoliday[]>("/api/administration/holidays/")
+  return response.data
+}
+
+export const createSchoolHoliday = async (payload: SchoolHolidayPayload): Promise<SchoolHoliday> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.post<SchoolHoliday>("/api/administration/holidays/", payload)
+  return response.data
+}
+
+export const getTimetableEntries = async (params?: {
+  academic_year?: string
+  class_name?: string
+  section?: string
+}): Promise<TimetableEntry[]> => {
+  const response = await adminApi.get<TimetableEntry[]>("/api/administration/timetable/", { params })
+  return response.data
+}
+
+export const createTimetableEntry = async (payload: TimetableEntryPayload): Promise<TimetableEntry> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.post<TimetableEntry>("/api/administration/timetable/", payload)
+  return response.data
+}
+
+export const getSupportRequests = async (): Promise<SupportRequest[]> => {
+  const response = await adminApi.get<SupportRequest[]>("/api/administration/support-requests/")
+  return response.data
+}
+
+export const createSupportRequest = async (payload: SupportRequestPayload): Promise<SupportRequest> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.post<SupportRequest>("/api/administration/support-requests/", payload)
   return response.data
 }
 

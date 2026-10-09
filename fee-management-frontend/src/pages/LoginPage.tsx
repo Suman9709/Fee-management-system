@@ -28,6 +28,7 @@ const LoginPage = () => {
     const portalPaths: Record<UserRole, string> = {
       admin: "/admin",
       staff: "/staff",
+      parent: "/parent",
       student: "/parent",
       user: "/",
     }

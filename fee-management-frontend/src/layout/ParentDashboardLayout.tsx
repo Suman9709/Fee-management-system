@@ -21,6 +21,7 @@ const navigationItems = [
   { label: "My Profile", to: "/parent/children", icon: UsersRound },
   { label: "Fees & Payments", to: "/parent/fees", icon: WalletCards },
   { label: "Attendance", to: "/parent/attendance", icon: CalendarDays },
+  { label: "Holidays", to: "/parent/holidays", icon: CalendarDays },
   { label: "Timetable", to: "/parent/timetable", icon: BookOpen },
   { label: "Notices", to: "/parent/notices", icon: Bell },
   { label: "Support", to: "/parent/support", icon: MessageCircle },
@@ -40,10 +41,11 @@ const ParentDashboardLayout = () => {
       // Do not navigate away if the server session could not be ended.
     }
   }
-  const { data: profile, user,  isPending } = useProfile()
+  const { data: profile, user, role, isPending } = useProfile()
 
   const displayName = profile?.full_name ?? user?.username ?? "User"
   const initials = displayName.slice(0, 2).toUpperCase();
+  const accountLabel = role === "parent" ? "Parent / guardian" : "Student"
 
   return (
     <div className="drawer min-h-screen bg-[#f7f8fc] text-slate-900 lg:drawer-open">
@@ -55,7 +57,7 @@ const ParentDashboardLayout = () => {
             <Menu className="size-5" />
           </label>
           <div>
-            <p className="text-xs font-medium text-slate-400">Student portal</p>
+            <p className="text-xs font-medium text-slate-400">{accountLabel} portal</p>
             <h1 className="mt-0.5 text-base font-semibold text-slate-900">{activePage}</h1>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -69,7 +71,7 @@ const ParentDashboardLayout = () => {
             </button>
             <div className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2">
               <span className="flex size-8 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-indigo-600 text-xs font-bold text-white">{initials}</span>
-              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">{isPending ? <span className="loading loading-spinner text-primary"></span> : displayName}</span><span className="block text-[11px] text-slate-400">Student</span></span>
+              <span className="hidden sm:block"><span className="block text-xs font-semibold text-slate-800">{isPending ? <span className="loading loading-spinner text-primary"></span> : displayName}</span><span className="block text-[11px] text-slate-400">{accountLabel}</span></span>
             </div>
           </div>
         </header>

@@ -8,6 +8,7 @@ import {
   getStudents,
   getTransportLocations,
   recordFeePayment,
+  updateFeePayment,
   type FeeInvoice,
   type FeePayment,
   type InvoiceStatus,
@@ -21,6 +22,7 @@ import {
   CreditCard,
   FilePlus2,
   LoaderCircle,
+  Pencil,
   Plus,
   ReceiptText,
   Search,
@@ -187,6 +189,49 @@ export const LivePaymentsPage = () => {
   const openInvoices = (invoicesQuery.data ?? []).filter((invoice) => Number(invoice.outstanding_amount) > 0 && invoice.status !== "cancelled")
   const paymentTotal = (paymentsQuery.data ?? []).reduce((total, payment) => total + Number(payment.amount), 0)
   return <div className="mx-auto max-w-7xl space-y-6 pb-8"><PageHeader eyebrow="Collection desk" title="Payments" description="Record cash, card, bank-transfer, and UPI collections against an issued invoice." />{invoicesQuery.isPending || paymentsQuery.isPending ? <Loading /> : invoicesQuery.error ? <ErrorBanner error={invoicesQuery.error} /> : paymentsQuery.error ? <ErrorBanner error={paymentsQuery.error} /> : <><div className="grid gap-4 sm:grid-cols-3"><Stat label="Payments recorded" value={String(paymentsQuery.data?.length ?? 0)} note="All recorded collection receipts" /><Stat label="Collected" value={currency(paymentTotal)} note="Across payment history" tone="text-emerald-600" /><Stat label="Open invoices" value={String(openInvoices.length)} note="Ready for collection" tone="text-amber-600" /></div><div className="grid gap-6 xl:grid-cols-5"><Card className="h-fit p-5 sm:p-6 xl:col-span-2"><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><CreditCard className="size-5" /></span><div><h3 className="font-semibold text-slate-900">Receive a payment</h3><p className="mt-0.5 text-sm text-slate-500">Choose an open invoice from the list.</p></div></div>{selectedInvoice ? <form className="mt-6 space-y-4" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); recordPayment.mutate() }}><div className="rounded-lg bg-slate-50 p-3 text-sm"><p className="font-semibold text-slate-800">{selectedInvoice.student_name}</p><p className="mt-1 text-slate-500">{monthName(selectedInvoice.billing_month)} · Outstanding {currency(selectedInvoice.outstanding_amount)}</p></div><label className="block text-sm font-semibold text-slate-700">Amount<input className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" max={selectedInvoice.outstanding_amount} min="0.01" onChange={(event) => setAmount(event.target.value)} required step="0.01" type="number" value={amount} /></label><label className="block text-sm font-semibold text-slate-700">Payment method<select className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500" onChange={(event) => setMethod(event.target.value as PaymentMethod)} value={method}><option value="upi">UPI</option><option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option></select></label><label className="block text-sm font-semibold text-slate-700">Payment date<input className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" onChange={(event) => setPaymentDate(event.target.value)} required type="date" value={paymentDate} /></label><label className="block text-sm font-semibold text-slate-700">Reference number <span className="font-normal text-slate-400">(optional)</span><input className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" onChange={(event) => setReference(event.target.value)} placeholder="UPI / bank reference" value={reference} /></label>{recordPayment.error && <ErrorBanner error={recordPayment.error} />}<div className="flex gap-3"><button className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60" disabled={recordPayment.isPending} type="submit">{recordPayment.isPending ? "Saving…" : "Record payment"}</button><button className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" onClick={() => setSelectedInvoice(null)} type="button">Cancel</button></div></form> : <p className="mt-6 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Select “Receive payment” next to an open invoice.</p>}</Card><Card className="xl:col-span-3"><div className="border-b border-slate-100 p-5 sm:px-6"><h3 className="font-semibold text-slate-900">Open invoices</h3><p className="mt-1 text-sm text-slate-500">Only invoices with an outstanding balance are shown.</p></div><InvoiceTable invoices={openInvoices} onReceive={chooseInvoice} showActions /></Card></div><Card><div className="border-b border-slate-100 p-5 sm:px-6"><h3 className="font-semibold text-slate-900">Payment history</h3><p className="mt-1 text-sm text-slate-500">Append-only records for audit and receipt reconciliation.</p></div>{paymentsQuery.data?.length ? <div className="divide-y divide-slate-100">{paymentsQuery.data.map((payment) => <PaymentRow key={payment.id} payment={payment} />)}</div> : <p className="p-6 text-sm text-slate-500">No payments have been recorded.</p>}</Card></>}</div>
+}
+
+export const PaymentCorrectionsPage = () => {
+  const queryClient = useQueryClient()
+  const [selectedPayment, setSelectedPayment] = useState<FeePayment | null>(null)
+  const [amount, setAmount] = useState("")
+  const [method, setMethod] = useState<PaymentMethod>("upi")
+  const [paymentDate, setPaymentDate] = useState("")
+  const [reference, setReference] = useState("")
+  const paymentsQuery = useQuery({ queryKey: ["fee-payments"], queryFn: () => getFeePayments() })
+  const reset = () => {
+    setSelectedPayment(null)
+    setAmount("")
+    setMethod("upi")
+    setPaymentDate("")
+    setReference("")
+  }
+  const correction = useMutation({
+    mutationFn: () => {
+      if (!selectedPayment) throw new Error("Select a payment to correct.")
+      return updateFeePayment(selectedPayment.id, {
+        amount,
+        method,
+        payment_date: paymentDate,
+        reference_number: reference.trim(),
+      })
+    },
+    onSuccess: () => {
+      reset()
+      void queryClient.invalidateQueries({ queryKey: ["fee-invoices"] })
+      void queryClient.invalidateQueries({ queryKey: ["fee-payments"] })
+      void queryClient.invalidateQueries({ queryKey: ["fee-dashboard"] })
+    },
+  })
+  const selectPayment = (payment: FeePayment) => {
+    setSelectedPayment(payment)
+    setAmount(payment.amount)
+    setMethod(payment.method)
+    setPaymentDate(payment.payment_date)
+    setReference(payment.reference_number)
+  }
+
+  return <div className="mx-auto max-w-7xl space-y-6 pb-8"><PageHeader eyebrow="Collection controls" title="Correct a payment" description="Staff and administrators can correct an amount, payment date, method, or reference. Every change is kept in an audit record and the invoice balance is recalculated immediately." />{paymentsQuery.isPending ? <Loading /> : paymentsQuery.error ? <ErrorBanner error={paymentsQuery.error} /> : <div className="grid gap-6 xl:grid-cols-5"><Card className="h-fit p-5 sm:p-6 xl:col-span-2"><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><Pencil className="size-5" /></span><div><h3 className="font-semibold text-slate-900">Payment correction</h3><p className="mt-1 text-sm text-slate-500">The invoice cannot be changed.</p></div></div>{selectedPayment ? <form className="mt-6 space-y-4" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); correction.mutate() }}><div className="rounded-lg bg-slate-50 p-3 text-sm"><p className="font-semibold text-slate-800">{selectedPayment.invoice_student_name}</p><p className="mt-1 text-slate-500">Payment #{selectedPayment.id} · Invoice for {monthName(selectedPayment.invoice_billing_month)}</p><p className="mt-1 text-xs text-slate-400">Recorded by {selectedPayment.received_by_name} on {shortDate(selectedPayment.payment_date)}</p></div><label className="block text-sm font-semibold text-slate-700">Corrected amount<input className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" min="0.01" onChange={(event) => setAmount(event.target.value)} required step="0.01" type="number" value={amount} /></label><label className="block text-sm font-semibold text-slate-700">Payment method<select className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500" onChange={(event) => setMethod(event.target.value as PaymentMethod)} value={method}><option value="upi">UPI</option><option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option></select></label><label className="block text-sm font-semibold text-slate-700">Payment date<input className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" onChange={(event) => setPaymentDate(event.target.value)} required type="date" value={paymentDate} /></label><label className="block text-sm font-semibold text-slate-700">Reference number <span className="font-normal text-slate-400">(optional)</span><input className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" onChange={(event) => setReference(event.target.value)} value={reference} /></label>{correction.error && <ErrorBanner error={correction.error} />}<div className="flex flex-wrap gap-3"><button className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60" disabled={correction.isPending} type="submit">{correction.isPending ? "Saving…" : "Save correction"}</button><button className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" onClick={reset} type="button">Cancel</button></div></form> : <p className="mt-6 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Select a payment from the history to correct it.</p>}</Card><Card className="xl:col-span-3"><div className="border-b border-slate-100 p-5 sm:px-6"><h3 className="font-semibold text-slate-900">Recorded payments</h3><p className="mt-1 text-sm text-slate-500">Corrections are retained for audit; payments cannot be moved between invoices or deleted.</p></div>{paymentsQuery.data?.length ? <div className="divide-y divide-slate-100">{paymentsQuery.data.map((payment) => <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6" key={payment.id}><div><p className="font-semibold text-slate-800">{payment.invoice_student_name} <span className="font-normal text-slate-400">· {payment.invoice_student_id}</span></p><p className="mt-1 text-sm text-slate-500">{currency(payment.amount)} · {payment.method.replaceAll("_", " ")} · {shortDate(payment.payment_date)}</p><p className="mt-1 text-xs text-slate-400">{payment.updated_by_name ? `Last corrected by ${payment.updated_by_name}` : `Recorded by ${payment.received_by_name}`}</p></div><button className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => selectPayment(payment)} type="button"><Pencil className="size-4" /> Correct</button></div>)}</div> : <p className="p-6 text-sm text-slate-500">No payments have been recorded.</p>}</Card></div>}</div>
 }
 
 export const LiveDefaultersPage = () => {

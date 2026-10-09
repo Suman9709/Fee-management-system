@@ -13,7 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from student.models import Student
 
-from .models import ClassFeeStructure, FeeInvoice, Payment, TransportLocation
+from .models import ClassFeeStructure, FeeInvoice, Payment, PaymentAuditLog, TransportLocation
 from .serializers import (
     ClassFeeStructureSerializer,
     FeeInvoiceSerializer,
@@ -154,11 +154,11 @@ class FeeInvoiceViewSet(ModelViewSet):
 
 
 class PaymentViewSet(ModelViewSet):
-    """Record fee payments. Payments are append-only financial records."""
+    """Record and correct fee payments while preserving an audit trail."""
 
     serializer_class = PaymentSerializer
     permission_classes = [IsAdminUser]
-    http_method_names = ['get', 'post', 'head', 'options']
+    http_method_names = ['get', 'post', 'put', 'patch', 'head', 'options']
 
     def get_queryset(self):
         queryset = Payment.objects.select_related('invoice__student', 'received_by')
@@ -185,6 +185,56 @@ class PaymentViewSet(ModelViewSet):
                 raise ValidationError({'invoice': 'A cancelled invoice cannot receive payments.'})
             payment = serializer.save(received_by=self.request.user, invoice=invoice)
             # Re-query the prefetched relation so the new payment participates in the status calculation.
+            invoice = FeeInvoice.objects.prefetch_related('payments').get(pk=invoice.pk)
+            sync_invoice_status(invoice)
+            return payment
+
+    def perform_update(self, serializer):
+        """Correct an existing payment without losing the prior financial record."""
+
+        with transaction.atomic():
+            payment = Payment.objects.select_for_update().get(pk=serializer.instance.pk)
+            invoice = FeeInvoice.objects.select_for_update().prefetch_related('payments').get(
+                pk=payment.invoice_id
+            )
+            if invoice.status == FeeInvoice.Status.CANCELLED:
+                raise ValidationError({'invoice': 'A cancelled invoice cannot receive payments.'})
+
+            amount = serializer.validated_data.get('amount', payment.amount)
+            other_paid_amount = sum(
+                (item.amount for item in invoice.payments.exclude(pk=payment.pk)),
+                start=Decimal('0.00'),
+            )
+            if amount > invoice.total_amount - other_paid_amount:
+                raise ValidationError(
+                    {
+                        'amount': (
+                            'Payment exceeds the remaining invoice balance of '
+                            f'{invoice.total_amount - other_paid_amount}.'
+                        )
+                    }
+                )
+
+            previous = {
+                'amount': payment.amount,
+                'payment_date': payment.payment_date,
+                'method': payment.method,
+                'reference_number': payment.reference_number,
+            }
+            serializer.instance = payment
+            payment = serializer.save(updated_by=self.request.user)
+            PaymentAuditLog.objects.create(
+                payment=payment,
+                changed_by=self.request.user,
+                previous_amount=previous['amount'],
+                new_amount=payment.amount,
+                previous_payment_date=previous['payment_date'],
+                new_payment_date=payment.payment_date,
+                previous_method=previous['method'],
+                new_method=payment.method,
+                previous_reference_number=previous['reference_number'],
+                new_reference_number=payment.reference_number,
+            )
             invoice = FeeInvoice.objects.prefetch_related('payments').get(pk=invoice.pk)
             sync_invoice_status(invoice)
             return payment

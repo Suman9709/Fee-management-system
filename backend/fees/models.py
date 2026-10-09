@@ -153,9 +153,47 @@ class Payment(models.Model):
         related_name="received_payments",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="updated_payments",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-payment_date", "-created_at"]
 
     def __str__(self):
         return f"Payment #{self.pk} for invoice #{self.invoice_id}"
+
+
+class PaymentAuditLog(models.Model):
+    """An immutable record of each correction made to a payment."""
+
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.PROTECT,
+        related_name="audit_logs",
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="payment_corrections",
+    )
+    previous_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    new_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    previous_payment_date = models.DateField()
+    new_payment_date = models.DateField()
+    previous_method = models.CharField(max_length=20, choices=Payment.Method.choices)
+    new_method = models.CharField(max_length=20, choices=Payment.Method.choices)
+    previous_reference_number = models.CharField(max_length=100, blank=True)
+    new_reference_number = models.CharField(max_length=100, blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-changed_at"]
+
+    def __str__(self):
+        return f"Payment #{self.payment_id} corrected on {self.changed_at:%d %b %Y}"

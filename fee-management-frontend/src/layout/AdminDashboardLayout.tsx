@@ -1,5 +1,5 @@
 import { useLogout, useProfile } from "@/hooks/authHooks/useAuth"
-import {Bell, CreditCard, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, School, Search, Settings, TriangleAlert, UserRoundCog, UsersRound, WalletCards} from "lucide-react"
+import {Bell, BookOpen, CreditCard, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, School, Search, Settings, TriangleAlert, UserRoundCog, UsersRound, WalletCards} from "lucide-react"
 import type { ComponentType } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 
@@ -12,9 +12,12 @@ type NavigationItem = {
 const navigationItems: NavigationItem[] = [
   { label: "Owner dashboard", to: "/admin", icon: LayoutDashboard },
   { label: "Student overview", to: "/admin/students", icon: UsersRound },
+  { label: "Parent accounts", to: "/admin/parents", icon: UsersRound },
+  { label: "Academic timetable", to: "/admin/academics", icon: BookOpen },
   { label: "Fee analytics", to: "/admin/fee-management", icon: WalletCards },
   { label: "Invoices & billing", to: "/admin/invoices", icon: FileText },
   { label: "Collection reports", to: "/admin/payments", icon: CreditCard },
+  { label: "Payment corrections", to: "/admin/payments/corrections", icon: CreditCard },
   { label: "Outstanding fees", to: "/admin/defaulters", icon: TriangleAlert },
   { label: "Staff activity", to: "/admin/staff", icon: UserRoundCog },
   { label: "Communication activity", to: "/admin/notifications", icon: Bell },
@@ -24,9 +27,12 @@ const pageTitles: Record<string, string> = {
   "/admin": "Owner dashboard",
   "/admin/students": "Student overview",
   "/admin/students/new": "Add student",
+  "/admin/parents": "Parent accounts",
+  "/admin/academics": "Academic timetable",
   "/admin/fee-management": "Fee analytics",
   "/admin/invoices": "Invoices & billing",
   "/admin/payments": "Collection reports",
+  "/admin/payments/corrections": "Payment corrections",
   "/admin/defaulters": "Outstanding fees",
   "/admin/staff": "Staff activity",
   "/admin/notifications": "Communication activity",

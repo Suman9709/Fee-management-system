@@ -1,6 +1,7 @@
 import { useLogout } from "@/hooks/authHooks/useAuth"
 import {
   Bell,
+  BookOpen,
   CalendarDays,
   ClipboardCheck,
   FileText,
@@ -20,11 +21,14 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 const navigationItems = [
   { label: "Dashboard", to: "/staff", icon: LayoutDashboard },
   { label: "Student Records", to: "/staff/students", icon: UsersRound },
+  { label: "Parent Accounts", to: "/staff/parents", icon: UsersRound },
   { label: "Student Setup", to: "/staff/student-setup", icon: UserRoundCog },
   { label: "Fee Setup", to: "/staff/fee-setup", icon: WalletCards },
   { label: "Invoices & Billing", to: "/staff/invoices", icon: FileText },
   { label: "Payments", to: "/staff/payments", icon: ReceiptText },
+  { label: "Payment Corrections", to: "/staff/payments/corrections", icon: ReceiptText },
   { label: "Monthly Attendance", to: "/staff/attendance", icon: ClipboardCheck },
+  { label: "Academic Timetable", to: "/staff/timetable", icon: BookOpen },
   { label: "Announcements", to: "/staff/announcements", icon: Megaphone },
   { label: "School Holidays", to: "/staff/holidays", icon: CalendarDays },
   { label: "Notifications", to: "/staff/notifications", icon: Bell },

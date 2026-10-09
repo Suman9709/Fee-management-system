@@ -67,6 +67,27 @@ class Student(models.Model):
         return f'{self.student_id} - {self.full_name}'
 
 
+class Guardian(models.Model):
+    """A parent/guardian login that can be linked to one or more students."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='guardian_profile',
+    )
+    full_name = models.CharField(max_length=100)
+    phone = models.CharField(max_length=15)
+    students = models.ManyToManyField(Student, related_name='guardians', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['full_name']
+
+    def __str__(self):
+        return self.full_name
+
+
 class Classroom(models.Model):
     """A class-and-section assignment managed by office staff."""
 

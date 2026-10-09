@@ -11,8 +11,8 @@ interface ProtectedRouteProps {
 const portalForRole: Record<UserRole, string> = {
   admin: "/admin",
   staff: "/staff",
-  // The backend currently has a student role. The existing parent portal is
-  // temporarily used for it until a dedicated student route is created.
+  parent: "/parent",
+  // Student accounts share the family portal with their linked guardian.
   student: "/parent",
   user: "/",
 }

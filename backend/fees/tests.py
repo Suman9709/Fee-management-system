@@ -223,6 +223,76 @@ class FeeOperationsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('amount', response.data)
 
+    def test_staff_can_correct_payment_and_invoice_status_is_recalculated(self):
+        response = self.client.post(
+            reverse('fee-invoice-list'),
+            {'billing_month': self.billing_month.isoformat()},
+            format='json',
+        )
+        invoice_id = response.data['invoices'][0]['id']
+        first_payment = self.client.post(
+            reverse('payment-list'),
+            {
+                'invoice': invoice_id,
+                'amount': '500.00',
+                'payment_date': self.billing_month.isoformat(),
+                'method': Payment.Method.UPI,
+                'reference_number': 'UPI-ORIGINAL',
+            },
+            format='json',
+        )
+        self.assertEqual(first_payment.status_code, status.HTTP_201_CREATED)
+        self.client.post(
+            reverse('payment-list'),
+            {
+                'invoice': invoice_id,
+                'amount': '1000.00',
+                'payment_date': self.billing_month.isoformat(),
+                'method': Payment.Method.CASH,
+            },
+            format='json',
+        )
+
+        response = self.client.patch(
+            reverse('payment-detail', kwargs={'pk': first_payment.data['id']}),
+            {
+                'amount': '300.00',
+                'payment_date': '2026-10-02',
+                'method': Payment.Method.CARD,
+                'reference_number': 'CARD-CORRECTED',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(str(response.data['amount']), '300.00')
+        self.assertEqual(response.data['method'], Payment.Method.CARD)
+        self.assertEqual(response.data['updated_by_name'], self.staff_user.username)
+
+        payment = Payment.objects.get(pk=first_payment.data['id'])
+        self.assertEqual(payment.audit_logs.count(), 1)
+        audit_log = payment.audit_logs.first()
+        self.assertEqual(audit_log.previous_amount, 500)
+        self.assertEqual(audit_log.new_amount, 300)
+        self.assertEqual(audit_log.changed_by, self.staff_user)
+        invoice = FeeInvoice.objects.get(pk=invoice_id)
+        self.assertEqual(invoice.status, FeeInvoice.Status.PARTIAL)
+
+        response = self.client.patch(
+            reverse('payment-detail', kwargs={'pk': payment.pk}),
+            {'amount': '501.00'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('amount', response.data)
+
+        self.client.force_authenticate(self.student.user)
+        response = self.client.patch(
+            reverse('payment-detail', kwargs={'pk': payment.pk}),
+            {'amount': '300.00'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_dashboard_and_defaulters_return_live_open_balance(self):
         FeeInvoice.objects.create(
             student=self.student,
