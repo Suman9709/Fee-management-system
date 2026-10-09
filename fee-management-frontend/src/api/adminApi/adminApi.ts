@@ -134,6 +134,91 @@ export type TransportLocationPayload = Pick<
   "location_name" | "monthly_transport_fee" | "is_active"
 >
 
+export type InvoiceStatus = "unpaid" | "partial" | "paid" | "overdue" | "cancelled"
+
+export interface FeeInvoice {
+  id: number
+  student: number
+  student_id: string
+  student_name: string
+  class_name: string
+  section: string
+  academic_year: string
+  billing_month: string
+  school_fee_amount: string
+  transport_fee_amount: string
+  total_amount: string
+  paid_amount: string
+  outstanding_amount: string
+  payment_count: number
+  due_date: string
+  status: InvoiceStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface InvoiceGenerationPayload {
+  billing_month: string
+  student_ids?: number[]
+}
+
+export interface InvoiceGenerationResult {
+  created: number
+  updated: number
+  invoices: FeeInvoice[]
+}
+
+export type PaymentMethod = "cash" | "card" | "bank_transfer" | "upi"
+
+export interface FeePayment {
+  id: number
+  invoice: number
+  invoice_student_id: string
+  invoice_student_name: string
+  invoice_billing_month: string
+  amount: string
+  payment_date: string
+  method: PaymentMethod
+  reference_number: string
+  received_by: number
+  received_by_name: string
+  created_at: string
+}
+
+export interface PaymentPayload {
+  invoice: number
+  amount: string
+  payment_date: string
+  method: PaymentMethod
+  reference_number?: string
+}
+
+export interface FeeDashboardSummary {
+  student_count: number
+  invoice_count: number
+  total_invoiced: string
+  total_collected: string
+  total_outstanding: string
+  collection_rate: string
+  paid_count: number
+  partial_count: number
+  unpaid_count: number
+  overdue_count: number
+}
+
+export interface FeeDashboardResponse {
+  academic_year: string
+  summary: FeeDashboardSummary
+  monthly_collections: Array<{ month: string; collected: string }>
+  class_collections: Array<{
+    class_name: string
+    invoiced: string
+    collected: string
+    collection_rate: string
+  }>
+  recent_payments: FeePayment[]
+}
+
 export interface CurrentUserResponse {
   authenticated: true
   role: UserRole
@@ -321,6 +406,53 @@ export const updateTransportLocation = async (
     `/api/fees/transport-locations/${id}/`,
     payload,
   )
+  return response.data
+}
+
+export const getFeeInvoices = async (params?: {
+  student?: number
+  student_id?: string
+  academic_year?: string
+  billing_month?: string
+  status?: InvoiceStatus
+}): Promise<FeeInvoice[]> => {
+  const response = await adminApi.get<FeeInvoice[]>("/api/fees/invoices/", { params })
+  return response.data
+}
+
+export const generateFeeInvoices = async (
+  payload: InvoiceGenerationPayload,
+): Promise<InvoiceGenerationResult> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.post<InvoiceGenerationResult>("/api/fees/invoices/", payload)
+  return response.data
+}
+
+export const getFeeDefaulters = async (academicYear?: string): Promise<FeeInvoice[]> => {
+  const response = await adminApi.get<FeeInvoice[]>("/api/fees/invoices/defaulters/", {
+    params: academicYear ? { academic_year: academicYear } : undefined,
+  })
+  return response.data
+}
+
+export const getFeePayments = async (params?: {
+  invoice?: number
+  student?: number
+}): Promise<FeePayment[]> => {
+  const response = await adminApi.get<FeePayment[]>("/api/fees/payments/", { params })
+  return response.data
+}
+
+export const recordFeePayment = async (payload: PaymentPayload): Promise<FeePayment> => {
+  await ensureCsrfCookie()
+  const response = await adminApi.post<FeePayment>("/api/fees/payments/", payload)
+  return response.data
+}
+
+export const getFeeDashboard = async (academicYear?: string): Promise<FeeDashboardResponse> => {
+  const response = await adminApi.get<FeeDashboardResponse>("/api/fees/dashboard/", {
+    params: academicYear ? { academic_year: academicYear } : undefined,
+  })
   return response.data
 }
 

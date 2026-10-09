@@ -81,3 +81,53 @@ def create_current_month_invoice_for_student(student, *, created_by, on_date=Non
             ]
         )
     return invoice
+
+
+def invoice_paid_amount(invoice):
+    """Return the amount received against an invoice.
+
+    Views normally prefetch ``payments`` so this does not create an extra query
+    for every row in a collection report.
+    """
+    return sum((payment.amount for payment in invoice.payments.all()), start=0)
+
+
+def sync_invoice_status(invoice, *, on_date=None):
+    """Keep the stored invoice status aligned with the payments received.
+
+    A payment never changes the invoice total.  It only changes the balance and
+    its status, which keeps a complete and auditable billing snapshot.
+    """
+    if invoice.status == FeeInvoice.Status.CANCELLED:
+        return invoice
+
+    on_date = on_date or timezone.localdate()
+    paid_amount = invoice_paid_amount(invoice)
+    if paid_amount >= invoice.total_amount:
+        status = FeeInvoice.Status.PAID
+    elif paid_amount > 0:
+        status = (
+            FeeInvoice.Status.OVERDUE
+            if invoice.due_date < on_date
+            else FeeInvoice.Status.PARTIAL
+        )
+    else:
+        status = (
+            FeeInvoice.Status.OVERDUE
+            if invoice.due_date < on_date
+            else FeeInvoice.Status.UNPAID
+        )
+
+    if invoice.status != status:
+        invoice.status = status
+        invoice.save(update_fields=['status', 'updated_at'])
+    return invoice
+
+
+def mark_overdue_invoices(*, on_date=None):
+    """Mark open invoices past their due date as overdue before reporting."""
+    on_date = on_date or timezone.localdate()
+    return FeeInvoice.objects.filter(
+        due_date__lt=on_date,
+        status__in=[FeeInvoice.Status.UNPAID, FeeInvoice.Status.PARTIAL],
+    ).update(status=FeeInvoice.Status.OVERDUE)

@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from fees.models import FeeInvoice
-from fees.services import create_current_month_invoice_for_student
+from fees.services import create_current_month_invoice_for_student, mark_overdue_invoices
 
 from .models import Classroom, Student, StudentAttendance
 from .serializers import (
@@ -163,6 +163,8 @@ class StudentDashboardView(APIView):
             student = request.user.student_profile
         except Student.DoesNotExist:
             raise PermissionDenied('This dashboard is available to student accounts only.')
+
+        mark_overdue_invoices()
 
         classroom = Classroom.objects.filter(
             class_name=student.class_name,

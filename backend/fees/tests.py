@@ -10,6 +10,7 @@ from rest_framework.test import APITestCase
 from student.models import Student
 
 from .models import ClassFeeStructure, FeeInvoice, Payment, TransportLocation
+from .services import academic_year_for
 
 
 class FeeModelTests(TestCase):
@@ -137,3 +138,114 @@ class FeeConfigurationApiTests(APITestCase):
         response = self.client.get(reverse('class-fee-list'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['class_name'], '10')
+
+
+class FeeOperationsApiTests(APITestCase):
+    """The office-facing invoice and payment workflow stays fully auditable."""
+
+    def setUp(self):
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create_user(
+            username='collections-staff',
+            password='safe-test-password',
+            is_staff=True,
+        )
+        self.billing_month = date(2026, 10, 1)
+        self.academic_year = academic_year_for(self.billing_month)
+        ClassFeeStructure.objects.create(
+            academic_year=self.academic_year,
+            class_name='10',
+            monthly_school_fee='1500.00',
+        )
+        self.student = Student.objects.create_with_user(
+            student_id='STU-COLLECTION-001',
+            password='PermanentPassword123',
+            full_name='Collection Student',
+            date_of_birth='2010-01-01',
+            class_name='10',
+            section='A',
+            parent_name='Collection Parent',
+            parent_phone='9876543210',
+            address='Test Address',
+        )
+        self.client.force_authenticate(self.staff_user)
+
+    def test_staff_can_generate_invoice_and_record_a_full_payment(self):
+        response = self.client.post(
+            reverse('fee-invoice-list'),
+            {'billing_month': self.billing_month.isoformat()},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['created'], 1)
+        invoice_id = response.data['invoices'][0]['id']
+
+        response = self.client.post(
+            reverse('payment-list'),
+            {
+                'invoice': invoice_id,
+                'amount': '500.00',
+                'payment_date': self.billing_month.isoformat(),
+                'method': Payment.Method.UPI,
+                'reference_number': 'UPI-TEST-1',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(
+            reverse('payment-list'),
+            {
+                'invoice': invoice_id,
+                'amount': '1000.00',
+                'payment_date': self.billing_month.isoformat(),
+                'method': Payment.Method.CASH,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        invoice = FeeInvoice.objects.get(pk=invoice_id)
+        self.assertEqual(invoice.status, FeeInvoice.Status.PAID)
+        self.assertEqual(Payment.objects.filter(invoice=invoice).count(), 2)
+
+        response = self.client.post(
+            reverse('payment-list'),
+            {
+                'invoice': invoice_id,
+                'amount': '1.00',
+                'payment_date': self.billing_month.isoformat(),
+                'method': Payment.Method.CASH,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('amount', response.data)
+
+    def test_dashboard_and_defaulters_return_live_open_balance(self):
+        FeeInvoice.objects.create(
+            student=self.student,
+            academic_year=self.academic_year,
+            billing_month=self.billing_month,
+            school_fee_amount='1500.00',
+            transport_fee_amount='0.00',
+            total_amount='1500.00',
+            due_date=date(2026, 10, 10),
+            created_by=self.staff_user,
+        )
+
+        response = self.client.get(
+            f"{reverse('fee-dashboard-list')}?academic_year={self.academic_year}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['summary']['student_count'], 1)
+        self.assertEqual(str(response.data['summary']['total_invoiced']), '1500.00')
+        self.assertEqual(str(response.data['summary']['total_outstanding']), '1500.00')
+
+        response = self.client.get(
+            f"{reverse('fee-invoice-defaulters')}?academic_year={self.academic_year}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['student_id'], self.student.student_id)

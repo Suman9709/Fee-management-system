@@ -1,5 +1,5 @@
 import { useLogout, useProfile } from "@/hooks/authHooks/useAuth"
-import {Bell, CreditCard, GraduationCap, LayoutDashboard, LogOut, Menu, School, Search, Settings, TriangleAlert, UserRoundCog, UsersRound, WalletCards} from "lucide-react"
+import {Bell, CreditCard, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, School, Search, Settings, TriangleAlert, UserRoundCog, UsersRound, WalletCards} from "lucide-react"
 import type { ComponentType } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 
@@ -13,6 +13,7 @@ const navigationItems: NavigationItem[] = [
   { label: "Owner dashboard", to: "/admin", icon: LayoutDashboard },
   { label: "Student overview", to: "/admin/students", icon: UsersRound },
   { label: "Fee analytics", to: "/admin/fee-management", icon: WalletCards },
+  { label: "Invoices & billing", to: "/admin/invoices", icon: FileText },
   { label: "Collection reports", to: "/admin/payments", icon: CreditCard },
   { label: "Outstanding fees", to: "/admin/defaulters", icon: TriangleAlert },
   { label: "Staff activity", to: "/admin/staff", icon: UserRoundCog },
@@ -24,6 +25,7 @@ const pageTitles: Record<string, string> = {
   "/admin/students": "Student overview",
   "/admin/students/new": "Add student",
   "/admin/fee-management": "Fee analytics",
+  "/admin/invoices": "Invoices & billing",
   "/admin/payments": "Collection reports",
   "/admin/defaulters": "Outstanding fees",
   "/admin/staff": "Staff activity",

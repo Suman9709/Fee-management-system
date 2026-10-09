@@ -170,7 +170,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# The school, fee due dates, and monthly billing cycle are managed in India.
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
